@@ -1,0 +1,31 @@
+body {
+  background-color: rgb(50, 68, 107);
+}
+
+button {
+  background:linear-gradient(
+    #5f34b1,
+    #3c5fc0
+  );
+}
+
+button:hover {
+  color: red;
+  background-color: rgb(14, 13, 107);
+  animation: pulsate 1s ease-in-out;
+}
+
+@keyframes pulsate {
+  0% {
+    box-shadow:
+      0 0 25px #5ddcff,
+      0 0 50px #4e00c2;
+  }
+}
+
+p {
+  /*background-color: blueviolet;*/
+  color: blueviolet;
+  width: 50px;
+  border: 1px solid rgb(9, 17, 124);
+}
