@@ -5,10 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta charset="UTF-8" />
     <title> Camera video </title>
+    <script src="https://cdn.jsdelivr.net/npm/vanta@0.5.22/vendor/three.r119.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vanta@0.5.22/dist/vanta.net.min.js"></script>
+
 </head>
   <style>
     body{
-      background-color: rgb(30, 30, 30);
+      background-color: rgb(30, 30, 30); 
+      
     }
     
     button{
@@ -37,10 +41,26 @@
 	client supports video/camera, but for the sake of illustrating the 
 	elements involved, they are created with markup (not JavaScript)
   -->
-  <video id="video" width="320" height="240" autoplay></video>
-  <button id="snap">Snap Photo</button>
-  <canvas id="canvas" width="320" height="240"></canvas> 
+  <div id="vanta">
+    <video id="video" width="320" height="240" autoplay></video>
+  
+    <button id="snap">Snap Photo</button>
+    <canvas id="canvas" width="320" height="240"></canvas> 
+  </div>
+  <script>
+    VANTA.NET({
+      el: "#vanta",
+      mouseControls: true,
+      touchControls: true,
+      gyroControls: false,
+      minHeight: 200.00,
+      minWidth: 200.00,
+      scale: 1.00,
+      scaleMobile: 1.00
+    
 
+    })
+    </script>
     <script>
       // Grab elements, create settings, etc.
       var video = document.getElementById('video');
