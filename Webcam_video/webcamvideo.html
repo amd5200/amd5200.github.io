@@ -37,6 +37,12 @@
          0  0 25px #4e00c2;
        }
      }
+
+     vanta{
+      position: absolute;
+      top: 0px;
+      left: 0px;
+     }
      
      video { 
      width: 320px;
@@ -49,7 +55,7 @@
      canvas {
       position: absolute;
       top: 0px;
-      right: 0px;
+      left: 350px;
       
     }
   </style>
@@ -62,15 +68,15 @@
 	elements involved, they are created with markup (not JavaScript)
   -->
   <div id="vanta">
-     <div>
+     
         <video id="video" width="320" height="240" autoplay></video>  
-     </div>
-     <div>
+     
+     
        <canvas id="canvas" width="320" height="240"></canvas>
-     </div>
-    <dev>
+     
+  
        <button id="snap" >Snap Photo</button>
-    </dev>
+    
      
    
     
@@ -116,4 +122,5 @@
     
 </body>
 </html>  
+
 
