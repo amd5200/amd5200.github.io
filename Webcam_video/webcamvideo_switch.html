@@ -102,7 +102,7 @@
      // Get access to the camera!
      if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
      // Not adding `{ audio: true }` since we only want video now
-	  //add back camea
+	  // add back camea; test on ipad, it's working
          navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment'} }).then(function(stream) {
              //video.src = window.URL.createObjectURL(stream);
              video.srcObject = stream;
