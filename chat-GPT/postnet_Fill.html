@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>人體姿勢檢測</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.10.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.5/dist/posenet.min.js"></script>
+</head>
+<body>
+  <video id="video" width="640" height="480" autoplay></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+  <script>
+    // 開啟webcam
+    navigator.mediaDevices.getUserMedia({video: true}).then(function(stream) {
+      var video = document.getElementById('video');
+      video.srcObject = stream;
+      video.play();
+    });
+
+    // 加載posenet模型
+    var modelPromise = posenet.load();
+
+    // 監聽webcam讀取事件
+    var canvas = document.getElementById('canvas');
+    var ctx = canvas.getContext('2d');
+    var poses = [];
+
+    function drawKeypoints(keypoints) {
+      // 畫出關鍵點
+      for (var i = 0; i < keypoints.length; i++) {
+        var keypoint = keypoints[i];
+        var x = keypoint.position.x;
+        var y = keypoint.position.y;
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+
+    function drawSkeleton(keypoints) {
+      // 畫出骨架
+      var skeleton = posenet.getAdjacentKeyPoints(keypoints, 0.5);
+      for (var i = 0; i < skeleton.length; i++) {
+        var pair = skeleton[i];
+        var p1 = pair[0].position;
+        var p2 = pair[1].position;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
+    }
+
+    var videoWidth = 640;
+    var videoHeight = 480;
+    var scaleFactor = 0.5;
+
+    setInterval(function() {
+      // 將webcam畫面繪製到canvas上
+      ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+
+      // 預測姿勢
+      modelPromise.then(function(model) {
+        return model.estimateSinglePose(video, {
+          flipHorizontal: false
+        });
+      }).then(function(pose) {
+        poses.push(pose.keypoints);
+
+        // 畫出關鍵點和骨架
+        drawKeypoints(pose.keypoints);
+        drawSkeleton(pose.keypoints);
+
+        // 僅保留最近的10個姿勢
+        if (poses.length > 10) {
+          poses.shift();
+        }
+      });
+    }, 1000 / 30);
+  </script>
+</body>
+</html>
+

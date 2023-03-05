@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+
+<!--
+以下是一個簡單的matrix screensaver動畫HTML示例，
+使用CSS動畫來創建類似於《駭客帝國》
+中的綠色文字效果：
+這個HTML文件創建一個包含隨機生成的數字和字母的div元素，
+並為其添加了一個CSS動畫，
+使其呈現出綠色的“矩陣碼”效果。
+這個動畫效果由CSS中的@keyframes定義，
+其中opacity屬性控制元素的不透明度。
+通過將動畫應用到具有class名稱“matrix”的div元素和span元素上，
+就可以觸發這個動畫效果。此外，我們還可以設置背景顏色和字體，
+以獲得更適合綠色“矩陣碼”風格的效果。生成隨機數字和字母的JavaScript代碼，
+將它們添加到HTML中。
+-->
+
+
+<html>
+  <head>
+    <style>
+      /* 設置背景和字體 */
+      body {
+        background-color: black;
+        font-family: Courier, monospace;
+        font-size: 16px;
+        color: lime;
+      }
+      
+      /* 定義動畫 */
+      @keyframes matrix {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      
+      /* matrix動畫效果 */
+      .matrix {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        animation: matrix 2s linear infinite;
+      }
+      
+      /* 隨機生成數字和字母 */
+      .matrix span {
+        display: inline-block;
+        margin: 0 5px;
+        opacity: 0;
+        animation: matrix 2s linear infinite;
+        animation-delay: calc(0.1s * var(--i));
+      }
+    </style>
+  </head>
+  
+  <body>
+    <div class="matrix">
+      <!-- 使用JavaScript隨機生成數字和字母 -->
+      <script>
+        for (var i = 0; i < 200; i++) {
+          var span = document.createElement('span');
+          span.textContent = Math.random() < 0.5 ? Math.floor(Math.random() * 10) : String.fromCharCode(Math.floor(Math.random() * 26) + 65);
+          span.style.setProperty('--i', i);
+          document.querySelector('.matrix').appendChild(span);
+        }
+      </script>
+    </div>
+  </body>
+</html>

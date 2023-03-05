@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      /* 設置字體和字號 */
+      .number {
+        font-family: Arial, sans-serif;
+        font-size: 48px;
+      }
+      
+      /* 定義動畫 */
+      @keyframes blink {
+        0% {
+          opacity: 0;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+      
+      /* 閃爍動畫效果 */
+      .blink {
+        animation: blink 1s infinite;
+      }
+    </style>
+  </head>
+  
+  <body>
+    <div class="number blink">12345</div>
+  </body>
+</html>
+
