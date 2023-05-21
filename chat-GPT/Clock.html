@@ -1,0 +1,92 @@
+以下是一个简单的指针时钟的 HTML 代码，
+你可以根据自己的需求进行修改。
+这个时钟使用了 HTML、CSS 和 JavaScript 编程代码制作。¹³
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="icon" type="image/x-icon" href="Yinyang.ico"/>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">  
+<title>指针时钟</title>
+<style type="text/css">
+body {
+    background-color: #000;
+}
+.clock {
+    width: 200px;
+    height: 200px;
+    margin: 0 auto;
+    position: relative;
+    border-radius: 50%;
+    border: 10px solid #fff;
+}
+.hour {
+    width: 6px;
+    height: 50px;
+    background-color: #fff;
+    position: absolute;
+    left: 97px;
+    top: 50px;
+    transform-origin: bottom center;
+}
+.minute {
+    width: 4px;
+    height: 80px;
+    background-color: #fff;
+    position: absolute;
+    left: 98px;
+    top: 20px;
+    transform-origin: bottom center;
+}
+.second {
+    width: 2px;
+    height: 100px;
+    background-color: #f00;
+    position: absolute;
+    left: 99px;
+    top: 0px;
+    transform-origin: bottom center;
+}
+.dot {
+    width: 10px;
+    height: 10px;
+    background-color:#fff ;
+    border-radius:50%;
+    position:absolute ;
+    left :95px ;
+    top :95px ;
+}
+</style>
+<script type="text/javascript">
+function clock(){
+var hour = document.getElementById("hour");
+var minute = document.getElementById("minute");
+var second = document.getElementById("second");
+var h = new Date().getHours();
+var m = new Date().getMinutes();
+var s = new Date().getSeconds();
+hour.style.transform = "rotate("+h*30+"deg)";
+minute.style.transform = "rotate("+m*6+"deg)";
+second.style.transform = "rotate("+s*6+"deg)";
+}
+setInterval(clock,1000);
+</script>
+</head>
+<body onload="clock()">
+<div class="clock">
+<div class="hour" id="hour"></div>
+<div class="minute" id="minute"></div>
+<div class="second" id="second"></div>
+<div class="dot"></div>
+</div>
+</body>
+</html>
+```
+希望这可以帮到你！如果你有任何问题，请随时问我。
+
+來源: 與 Bing 的交談， 2023/5/10
+(1) 利用js，HTML，css实现一个简单的指针时钟 - CSDN博客. https://blog.csdn.net/qqpaowenquan/article/details/105599980.
+(2) 使用 HTML、CSS 和 JavaScript 的简单模拟时钟 - CSDN博客. https://blog.csdn.net/qq_44273429/article/details/119724717.
+(3) 使用 HTML、CSS 和 JavaScript 制作模拟时钟(初学者教程)-腾讯云开发者社区-腾讯云. https://cloud.tencent.com/developer/article/1866565.
