@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<!--
+這個代碼創建了一個400x400像素的遊戲板，
+貪食蛇的每個部分是20x20像素的正方形，用綠色表示。
+遊戲開始時，貪食蛇由4個部分組成，並向右移動。
+每300毫秒，遊戲更新一次，移動貪食蛇，檢查碰撞，
+繪製遊戲畫面。遊戲結束條件是碰到邊界或碰撞到自身，
+當遊戲結束時，會彈出一個提示框。你可以通過按上、下、左、右箭頭鍵來控制貪食蛇的方向。
+
+請注意，這只是一個簡單的示例，遊戲的功能和視覺效果可以根據需要進一步擴展和改進。
+希望這能幫助到你！
+-->
+<html>
+<head>
+    <link rel="icon" type="image/x-icon" href="Yinyang.ico"/>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>貪食蛇遊戲</title>
+    <style>
+        body{
+		        background-color: rgb(30, 30, 30);
+	      }
+        #game-board {
+            border: 1px solid #000;
+            width: 400px;
+            height: 400px;
+            position: relative;
+            background-color: black; /* 將背景顏色設置為黑色 */
+        }
+        .snake {
+            width: 20px;
+            height: 20px;
+            position: absolute;
+            background-color: green;
+            
+        }
+        .food {
+            width: 20px;
+            height: 20px;
+            position: absolute;
+            background-color: red;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .control-button {
+            width: 50px;
+            height: 50px;
+            margin: 0 5px;
+            background-color: gray;
+            color: #fff;
+            font-size: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-board"></div>
+
+    <div class="controls">
+        <button class="control-button" id="up">↑</button>
+        <button class="control-button" id="left">←</button>
+        <button class="control-button" id="right">→</button>
+        <button class="control-button" id="down">↓</button>
+    </div>
+
+    <script>
+        // 遊戲參數
+        var boardSize = 400;
+        var blockSize = 20;
+        var snake;
+        var food;
+        var direction;
+        var gameLoop;
+
+        // 初始化遊戲
+        function init() {
+            // 初始化貪食蛇位置和方向
+            snake = [
+                { x: 4, y: 2 },
+                { x: 3, y: 2 },
+                { x: 2, y: 2 },
+                { x: 1, y: 2 },
+            ];
+            direction = 'right';
+
+            // 生成食物
+            generateFood();
+
+            // 開始遊戲循環，調整蛇的移動速度
+            gameLoop = setInterval(update, 300);
+        }
+
+        // 更新遊戲狀態
+        function update() {
+            // 移動貪食蛇
+            moveSnake();
+
+            // 檢查碰撞
+            if (checkCollision()) {
+                clearInterval(gameLoop);
+                alert('遊戲結束！');
+                return;
+            }
+
+            // 檢查是否吃到食物
+            if (snake[0].x === food.x && snake[0].y === food.y) {
+                // 增長貪食蛇
+                snake.push({});
+                // 生成新的食物
+                generateFood();
+            }
+
+            // 更新遊戲畫面
+            draw();
+        }
+
+        // 移動貪食蛇
+        function moveSnake() {
+            var head = Object.assign({}, snake[0]);
+            switch (direction) {
+                case 'up':
+                    head.y -= 1;
+                    break;
+                case 'down':
+                    head.y += 1;
+                    break;
+               
+                case 'left':
+                    head.x -= 1;
+                    break;
+                case 'right':
+                    head.x += 1;
+                    break;
+            }
+            snake.unshift(head);
+            snake.pop();
+        }
+
+        // 檢查碰撞
+        function checkCollision() {
+            var head = snake[0];
+
+            // 碰撞邊界
+            if (head.x < 0 || head.y < 0 || head.x >= boardSize / blockSize || head.y >= boardSize / blockSize) {
+                return true;
+            }
+
+            // 碰撞身體
+            for (var i = 1; i < snake.length; i++) {
+                if (snake[i].x === head.x && snake[i].y === head.y) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // 生成食物
+        function generateFood() {
+            food = {
+                x: Math.floor(Math.random() * (boardSize / blockSize)),
+                y: Math.floor(Math.random() * (boardSize / blockSize))
+            };
+        }
+
+        // 繪製遊戲畫面
+        function draw() {
+            var gameBoard = document.getElementById('game-board');
+            gameBoard.innerHTML = '';
+
+            // 繪製貪食蛇
+            for (var i = 0; i < snake.length; i++) {
+                var snakePart = document.createElement('div');
+                snakePart.className = 'snake';
+                snakePart.style.left = snake[i].x * blockSize + 'px';
+                snakePart.style.top = snake[i].y * blockSize + 'px';
+                gameBoard.appendChild(snakePart);
+            }
+
+            // 繪製食物
+            var foodElement = document.createElement('div');
+            foodElement.className = 'food';
+            foodElement.style.left = food.x * blockSize + 'px';
+            foodElement.style.top = food.y * blockSize + 'px';
+            gameBoard.appendChild(foodElement);
+        }
+
+        // 監聽鍵盤事件
+        document.addEventListener('keydown', function (event) {
+            switch (event.key) {
+                case 'ArrowUp':
+                    direction = 'up';
+                    break;
+                case 'ArrowDown':
+                    direction = 'down';
+                    break;
+                case 'ArrowLeft':
+                    direction = 'left';
+                    break;
+                case 'ArrowRight':
+                    direction = 'right';
+                    break;
+            }
+        });
+
+        // 監聽虛擬按鈕事件
+        var upButton = document.getElementById('up');
+        var downButton = document.getElementById('down');
+        var leftButton = document.getElementById('left');
+        var rightButton = document.getElementById('right');
+
+        upButton.addEventListener('click', function () {
+            direction = 'up';
+        });
+
+        downButton.addEventListener('click', function () {
+            direction = 'down';
+        });
+
+        leftButton.addEventListener('click', function () {
+            direction = 'left';
+        });
+
+        rightButton.addEventListener('click', function () {
+            direction = 'right';
+        });
+
+        // 初始化遊戲
+        init();
+    </script>
+</body>
+</html>
