@@ -14,7 +14,7 @@
 <head>
     <link rel="icon" type="image/x-icon" href="Yinyang.ico"/>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">  
     <title>貪食蛇遊戲</title>
     <style>
         body{
@@ -42,8 +42,16 @@
         }
         .controls {
             display: flex;
-            justify-content: center;
-            margin-top: 10px;
+            flex-direction: column; /*將容器的排列方向設為垂直*/
+            justify-content: space-between;
+            height: 200px; /*設置容器的高度*/
+            align-items: center;
+            /*margin-top: 10px;*/
+        }
+        .controls > div{
+            display: flex;
+            justify-content: space-between;
+            width: 200px; /*設置容器的寬度*/
         }
         .control-button {
             width: 50px;
@@ -60,11 +68,13 @@
 </head>
 <body>
     <div id="game-board"></div>
-
+    <div id="score" style="color: green;">分數: 0</div>
     <div class="controls">
         <button class="control-button" id="up">↑</button>
-        <button class="control-button" id="left">←</button>
-        <button class="control-button" id="right">→</button>
+        <div>
+            <button class="control-button" id="left">←</button>
+            <button class="control-button" id="right">→</button>
+        </div>  
         <button class="control-button" id="down">↓</button>
     </div>
 
@@ -76,6 +86,7 @@
         var food;
         var direction;
         var gameLoop;
+        var score = 0;    //計分
 
         // 初始化遊戲
         function init() {
@@ -109,6 +120,8 @@
 
             // 檢查是否吃到食物
             if (snake[0].x === food.x && snake[0].y === food.y) {
+                //更新計分
+                score += 10;
                 // 增長貪食蛇
                 snake.push({});
                 // 生成新的食物
@@ -162,6 +175,8 @@
 
         // 生成食物
         function generateFood() {
+            
+            document.getElementById('score').innerText = '分數: ' + score;
             food = {
                 x: Math.floor(Math.random() * (boardSize / blockSize)),
                 y: Math.floor(Math.random() * (boardSize / blockSize))
@@ -207,6 +222,12 @@
                     break;
             }
         });
+        // 定義震動函數
+        function vibrate() {
+            if (navigator.vibrate) {
+                navigator.vibrate(30); // 震動 0.03 秒
+             }
+        }
 
         // 監聽虛擬按鈕事件
         var upButton = document.getElementById('up');
@@ -216,18 +237,25 @@
 
         upButton.addEventListener('click', function () {
             direction = 'up';
+            vibrate(); // 觸發震動效果
+        
         });
 
         downButton.addEventListener('click', function () {
             direction = 'down';
+            vibrate(); // 觸發震動效果
+
+
         });
 
         leftButton.addEventListener('click', function () {
             direction = 'left';
+            vibrate(); // 觸發震動效果
         });
 
         rightButton.addEventListener('click', function () {
             direction = 'right';
+            vibrate(); // 觸發震動效果
         });
 
         // 初始化遊戲
@@ -235,3 +263,4 @@
     </script>
 </body>
 </html>
+
