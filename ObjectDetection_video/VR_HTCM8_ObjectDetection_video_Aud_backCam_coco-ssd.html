@@ -1,0 +1,209 @@
+<!-- 
+Author : ChungYi Fu (Kaohsiung, Taiwan)   2020/10/9 00:00
+https://www.facebook.com/francefu
+
+Try it!
+https://fustyles.github.io/webduino/TensorFlow/ObjectDetection_video/ObjectDetection_video_coco-ssd.html
+
+How to enable WebGL in Chrome.
+https://superuser.com/questions/836832/how-can-i-enable-webgl-in-my-browser
+
+Modify by Harry Lin (Kaohsiung, Taiwan)   2022/09/05 22:13
+Add object detection area & audio alarm 2022/09/05 22:15
+Add text to speech by object detection 2022/09/13 21:00
+Detect car and person by different area 2022/10/10 20:30
+-->
+<!DOCTYPE html>
+<head>
+   <link rel="icon" type="image/x-icon" href="Yinyang.ico"/>
+  <title>Object Detection (coco-ssd)</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"> </script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.1.0"> </script>  
+</head>
+
+<style>
+	body{
+		background-color: rgb(30, 30, 30);
+	}
+	
+	button{
+		color:#5ddcff;
+    background:rgb(27, 42, 43);
+	}
+	
+ 	button:hover{
+		 color: red;
+		 background-color: rgb(14, 13, 107);
+		 animation: pulsate 1s
+		 ease-in-out ;
+	 }
+	 @keyframes pulsate{
+		 0%{
+			 box-shadow: 
+			 0  0  25px #5ddcff,
+			 0  0 25px #4e00c2;
+		 }
+	 }
+ 
+</style>
+
+<body>
+<button onclick="location.href=location.pathname;">Front Camera</button>&nbsp;&nbsp;<button onclick="location.href='?back';">Rear Camera</button><br>
+<video id="video" width="240" height="240" preload autoplay loop muted></video> 
+<!--<video id="video" width="320" height="240" preload autoplay></video>-->
+<canvas id="canvas"></canvas>
+<!--<canvas id="canvas" width="320" height="240"></canvas>-->
+<br>
+<!--======= add audio sorce ===============-->
+<font color="#5ddcff">Audio surce:</font>&nbsp;&nbsp;<input type="text" id="aud" size="25" value="87o.mp3"><input type="button" id="setsource" value="set" onclick="alarm.src=document.getElementById('aud').value;">
+<br>
+<font color="#5ddcff">Speak surce:</font>&nbsp;&nbsp;<input type="text" id="text-input" value= "五掐" placeholder="Enter Text" />
+<br>
+<div id="result" style="color:red"></div>
+  
+<script>
+  var video = document.getElementById('video');
+  var canvas = document.getElementById('canvas'); 
+  var context = canvas.getContext('2d');
+  var result = document.getElementById('result'); 
+  let Model; 
+ /* ====== audio ======================*/
+  var aud = document.getElementById('aud');
+  var alarm = new Audio(aud.value);
+  /*===================================*/
+  window.onload = function() {LoadModel();}  
+  function LoadModel() {
+	result.innerHTML = "Please wait for loading model.";
+    cocoSsd.load().then(model => {
+      Model = model;
+      result.innerHTML = "";
+      startVideo();
+    }); 
+  }  
+  
+  function startVideo() {
+	if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+	  console.log("enumerateDevices() not supported.");
+	  return;
+	}
+ 
+	var videoWidth = 240;
+	var videoHeight = 240;
+	
+    var back = {audio: false,video: {facingMode: 'user',width: videoWidth,height: videoHeight}};
+	navigator.mediaDevices.enumerateDevices()
+		.then(function(devices) {
+		  devices.forEach(function(device) {
+			  if (device.kind=="videoinput"&&device.label.includes("facing back")) {
+				if (device.deviceId=='')
+					back = {audio: false,video: {facingMode: 'environment',width: videoWidth,height: videoHeight} };
+				else
+					back = {audio: false,video: {deviceId: {'exact':device.deviceId}, facingMode: 'environment',width: videoWidth,height: videoHeight} };
+			  }
+		  });
+		
+		
+		if (location.search.toLowerCase().indexOf("?back")!=1)
+		  //var userMedia = back;
+                  var userMedia = { video: { facingMode: 'environment'} };             // default back camera
+		else
+		  var userMedia = {audio: false,video: {facingMode: 'user',width: videoWidth,height: videoHeight}};
+
+		//video.style.visibility="hidden";
+		video.style.visibility="visible";            // use source video
+		//video.style.position="absolute";
+		navigator.mediaDevices
+		  .getUserMedia(userMedia)
+		  .then(stream => {
+			video.srcObject = stream
+			video.onloadedmetadata = () => {       
+			  video.play();
+			  canvas.setAttribute("width", video.width);
+			  canvas.setAttribute("height", video.height);          
+			  setTimeout(function(){DetectVideo(); }, 100);
+			}
+		 })  
+	}) 
+  } 
+                        
+  async function DetectVideo() {
+    context.drawImage(video, 0, 0, video.width, video.height);
+    await Model.detect(canvas).then(predictions => { 
+      result.innerHTML = "";
+
+      //console.log('Predictions: ', predictions);
+      if (predictions.length>0) {
+        for (var i=0;i<predictions.length;i++) {
+          const x = predictions[i].bbox[0];
+          const y = predictions[i].bbox[1];
+          const width = predictions[i].bbox[2];
+          const height = predictions[i].bbox[3];
+          
+          const area=  (width *height );                  // detect object box area
+
+         //*/======= text to speech ================================
+          const textInputField = document.querySelector("#text-input")
+          const form = document.querySelector("#form")
+          const utterThis = new SpeechSynthesisUtterance()
+          const synth = window.speechSynthesis
+          let ourText = ""
+          
+         //=====================================================*/
+
+          context.lineWidth = "3";
+          context.strokeStyle = "#00FFFF";
+          context.beginPath();
+          context.rect(x, y, width, height);
+          context.stroke(); 
+          context.lineWidth = "2";
+          context.fillStyle = "red";
+          context.font = "12px Arial";
+          context.fillText(predictions[i].class, x, y);
+
+          result.innerHTML+= "[ "+i+" ] "+predictions[i].class+", "+Math.round(predictions[i].score*100)+"%, "+Math.round(x)+", "+Math.round(y)+", "+Math.round(width)+", "+Math.round(height)+"<br>";
+           
+          // ======  detect the object area then play audio =========
+          //if (((predictions[i].class=="person" ) || (predictions[i].class=="car"))&&(area>=4100)&&(alarm.paused||alarm.ended)){
+          if ((predictions[i].class=="car")&&(area>=4100)&&(alarm.paused||alarm.ended)){
+             //alarm.play();    
+             
+             textInputField.value = "五掐"    // no input only speak "hello"
+             ourText = textInputField.value
+             utterThis.text = ourText
+             //utterThis.lang = 'en-US';
+             utterThis.lang = 'zh-TW';
+             synth.speak(utterThis)
+             textInputField.value = ""     // clear text input 
+             
+          }
+          else if (area<=3900){
+                synth.cancel();
+          }
+          if ((predictions[i].class=="person" )&&(area>=3100)&&(alarm.paused||alarm.ended)){
+             //alarm.play();    
+             
+             textInputField.value = "五狼"    // no input only speak "hello"
+             ourText = textInputField.value
+             utterThis.text = ourText
+             //utterThis.lang = 'en-US';
+             utterThis.lang = 'zh-TW';
+             synth.speak(utterThis)
+             textInputField.value = ""     // clear text input 
+             
+          }
+          else if (area<=2900){
+                synth.cancel();
+          }
+        }
+      }
+      else
+        result.innerHTML = "Unrecognizable";
+      setTimeout(function(){DetectVideo(); }, 100);
+    });
+  }
+</script>
+
+</body>
+</html>
