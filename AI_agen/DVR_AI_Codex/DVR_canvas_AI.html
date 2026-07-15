@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>監視器影像 AI 偵測系統</title>
+    <script src="./lib/tf.min.js"></script>
+    <script src="./lib/coco-ssd.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: rgb(20, 20, 25);
+            color: #f0f0f0;
+            font-family: Arial, 'Microsoft JhengHei', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        /* ── 頂部標題列 ── */
+        #header {
+            width: 100%;
+            max-width: 1400px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 12px;
+        }
+
+        #header h1 {
+            font-size: 18px;
+            font-weight: bold;
+            color: #c8d0e0;
+        }
+
+        #model-status {
+            font-size: 13px;
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        /* ── 登入面板 ── */
+        #login-panel {
+            background: #1e2030;
+            border: 1px solid #3a3f55;
+            border-radius: 10px;
+            padding: 24px 32px;
+            width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #login-panel h2 {
+            font-size: 16px;
+            text-align: center;
+            color: #a0a8c0;
+            margin-bottom: 4px;
+        }
+
+        #login-panel input {
+            padding: 9px 12px;
+            border-radius: 6px;
+            border: 1px solid #3a3f55;
+            background: #12141e;
+            color: #f0f0f0;
+            font-size: 14px;
+            outline: none;
+        }
+
+        #login-panel input:focus {
+            border-color: #6366f1;
+        }
+
+        #login-msg {
+            font-size: 12px;
+            color: #ef4444;
+            min-height: 16px;
+            text-align: center;
+        }
+
+        /* ── 通道網格 ── */
+        #channels {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            width: 100%;
+            max-width: 1400px;
+        }
+
+        .channel-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .channel-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #8090a8;
+        }
+
+        .channel-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        /* ── Canvas 容器（iframe + overlay 疊加用）── */
+        .canvas-wrapper {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .roi-summary {
+            width: 640px;
+            min-height: 74px;
+            background: #161925;
+            border: 1px solid #2f3548;
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: #d8dee9;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .roi-summary-title {
+            color: #10b981;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .roi-summary ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .roi-summary-empty {
+            color: #8090a8;
+        }
+
+        .stream-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 640px;
+            height: 480px;
+        }
+
+        /* 截圖方式不顯示 iframe，canvas 就是畫面 */
+        .channel-block canvas {
+            display: block;
+        }
+
+        /* ── 按鈕 ── */
+        button {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 6px;
+            background: #4f46e5;
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #4338ca;
+        }
+
+        button:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        button.green {
+            background: #10b981;
+        }
+
+        button.green:hover {
+            background: #059669;
+        }
+
+        button.red {
+            background: #ef4444;
+        }
+
+        button.red:hover {
+            background: #dc2626;
+        }
+
+        button.orange {
+            background: #f59e0b;
+        }
+
+        button.orange:hover,
+        button.orange.active {
+            background: #d97706;
+        }
+
+        /* 刷新頻率選擇 */
+        select {
+            padding: 8px;
+            background: #1e2030;
+            border: 1px solid #3a3f55;
+            color: #f0f0f0;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        #global-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            width: 100%;
+            max-width: 1400px;
+        }
+
+        #global-controls label {
+            font-size: 13px;
+            color: #8090a8;
+        }
+
+        .confidence-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .confidence-control input[type="range"] {
+            width: 140px;
+            accent-color: #10b981;
+        }
+
+        #confidence-value {
+            min-width: 42px;
+            color: #f0f0f0;
+            font-size: 13px;
+            font-weight: bold;
+            text-align: right;
+        }
+
+        #photo-status {
+            color: #8090a8;
+            font-size: 13px;
+        }
+
+        #photo-panel {
+            width: 100%;
+            max-width: 1400px;
+            background: #161925;
+            border: 1px solid #2f3548;
+            border-radius: 6px;
+            padding: 12px;
+            display: none;
+        }
+
+        #photo-panel h3 {
+            color: #c8d0e0;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        #photo-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .photo-card {
+            width: 150px;
+            color: #d8dee9;
+            font-size: 12px;
+        }
+
+        .photo-card img {
+            width: 150px;
+            height: 112px;
+            object-fit: cover;
+            border: 1px solid #3a3f55;
+            border-radius: 4px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* 偵測結果標籤（疊加在 canvas 上的 HTML 元素，供顯示用）*/
+        .detection-label {
+            position: absolute;
+            background: rgba(99, 102, 241, 0.85);
+            color: #fff;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 頂部標題 -->
+    <div id="header">
+        <h1>📹 DVR AI 監視器分析系統</h1>
+        <span id="model-status">AI 模型載入中…</span>
+    </div>
+
+    <!-- 登入面板（預設顯示） -->
+    <div id="login-panel">
+        <h2>🔑 登入 DVR 系統</h2>
+        <input id="dvr-user" type="text" placeholder="帳號（例：admin）" autocomplete="username">
+        <input id="dvr-pass" type="password" placeholder="密碼" autocomplete="current-password">
+        <button id="login-btn" class="green">登入</button>
+        <div id="login-msg"></div>
+    </div>
+
+    <!-- 全域控制列（登入後顯示） -->
+    <div id="global-controls" style="display:none;">
+        <label>自動刷新頻率：</label>
+        <select id="refresh-rate">
+            <option value="0">不自動刷新</option>
+            <option value="2000" selected>每 2 秒</option>
+            <option value="5000">每 5 秒</option>
+            <option value="10000">每 10 秒</option>
+        </select>
+        <button id="refresh-all-btn">🔄 全部刷新截圖</button>
+        <button id="detect-all-btn" disabled>🔍 全部 AI 偵測</button>
+        <button id="photo-toggle-btn">📸 開啟拍照功能</button>
+        <span id="photo-status">拍照功能：關閉</span>
+        <div class="confidence-control">
+            <label for="confidence-threshold">置信度:</label>
+            <input id="confidence-threshold" type="range" min="0" max="100" step="5" value="50">
+            <span id="confidence-value">50%</span>
+        </div>
+    </div>
+
+    <div id="photo-panel">
+        <h3>未能儲存到目錄的照片</h3>
+        <div id="photo-gallery"></div>
+    </div>
+
+    <!-- 通道顯示區（登入後顯示） -->
+    <div id="channels" style="display:none;">
+
+        <!-- 通道 01 -->
+        <div class="channel-block" id="block-1">
+            <div class="channel-title">通道 01</div>
+            <div class="channel-controls">
+                <button onclick="fetchSnapshot(1)">📷 截圖</button>
+                <button class="ai-detect-btn" onclick="runDetect(1)" disabled>🔍 AI 偵測</button>
+                <button class="orange roi-toggle-btn" id="roi-toggle-1" onclick="toggleRoiDrawing(1)">▣ 畫範圍</button>
+                <button class="orange" onclick="clearRoiBoxes(1)">清範圍</button>
+                <button class="red" onclick="clearDetect(1)">✕ 清除</button>
+            </div>
+            <div class="canvas-wrapper" id="wrapper-1">
+                <canvas id="canvas-1" class="stream-canvas" width="640" height="480"></canvas>
+            </div>
+            <div class="roi-summary" id="roi-summary-1"></div>
+        </div>
+
+        <!-- 通道 02 -->
+        <div class="channel-block" id="block-2">
+            <div class="channel-title">通道 02</div>
+            <div class="channel-controls">
+                <button onclick="fetchSnapshot(2)">📷 截圖</button>
+                <button class="ai-detect-btn" onclick="runDetect(2)" disabled>🔍 AI 偵測</button>
+                <button class="orange roi-toggle-btn" id="roi-toggle-2" onclick="toggleRoiDrawing(2)">▣ 畫範圍</button>
+                <button class="orange" onclick="clearRoiBoxes(2)">清範圍</button>
+                <button class="red" onclick="clearDetect(2)">✕ 清除</button>
+            </div>
+            <div class="canvas-wrapper" id="wrapper-2">
+                <canvas id="canvas-2" class="stream-canvas" width="640" height="480"></canvas>
+            </div>
+            <div class="roi-summary" id="roi-summary-2"></div>
+        </div>
+
+        <!-- 通道 03 -->
+        <div class="channel-block" id="block-3">
+            <div class="channel-title">通道 03</div>
+            <div class="channel-controls">
+                <button onclick="fetchSnapshot(3)">📷 截圖</button>
+                <button class="ai-detect-btn" onclick="runDetect(3)" disabled>🔍 AI 偵測</button>
+                <button class="orange roi-toggle-btn" id="roi-toggle-3" onclick="toggleRoiDrawing(3)">▣ 畫範圍</button>
+                <button class="orange" onclick="clearRoiBoxes(3)">清範圍</button>
+                <button class="red" onclick="clearDetect(3)">✕ 清除</button>
+            </div>
+            <div class="canvas-wrapper" id="wrapper-3">
+                <canvas id="canvas-3" class="stream-canvas" width="640" height="480"></canvas>
+            </div>
+            <div class="roi-summary" id="roi-summary-3"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const CHANNELS = [1, 2, 3];
+        let model = null;
+        let autoRefreshTimer = null;
+        let confidenceThreshold = 0.5;
+        const baseFrames = {};
+        const detectionResults = {};
+        const roiBoxes = {};
+        const speechTextByClass = {
+            car: '五掐',
+            person: '五郎'
+        };
+        const speechLastSpokenAt = {
+            car: 0,
+            person: 0
+        };
+        const speechCooldownMs = 3000;
+        let photoCaptureEnabled = false;
+        let photoFallbackNumber = 1;
+        let drawingChannel = null;
+        let draftRoiBox = null;
+
+        CHANNELS.forEach(ch => {
+            detectionResults[ch] = [];
+            roiBoxes[ch] = [];
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            CHANNELS.forEach(ch => updateRoiSummary(ch));
+        });
+
+        function updateConfidenceThreshold() {
+            const input = document.getElementById('confidence-threshold');
+            const valueEl = document.getElementById('confidence-value');
+            confidenceThreshold = parseInt(input.value, 10) / 100;
+            valueEl.textContent = `${input.value}%`;
+        }
+
+        document.getElementById('confidence-threshold').addEventListener('input', updateConfidenceThreshold);
+        updateConfidenceThreshold();
+
+        document.getElementById('photo-toggle-btn').addEventListener('click', () => {
+            photoCaptureEnabled = !photoCaptureEnabled;
+            updatePhotoToggle();
+        });
+
+        function updatePhotoToggle() {
+            const btn = document.getElementById('photo-toggle-btn');
+            const status = document.getElementById('photo-status');
+            btn.textContent = photoCaptureEnabled ? '📸 關閉拍照功能' : '📸 開啟拍照功能';
+            btn.classList.toggle('green', photoCaptureEnabled);
+            status.textContent = `拍照功能：${photoCaptureEnabled ? '開啟' : '關閉'}`;
+            status.style.color = photoCaptureEnabled ? '#10b981' : '#8090a8';
+        }
+
+        updatePhotoToggle();
+
+        // ── AI 模型載入 ────────────────────────────────────────────────────────
+        async function initModel() {
+            const statusEl = document.getElementById('model-status');
+            try {
+                model = await cocoSsd.load({ modelUrl: './model/model.json' });
+                statusEl.textContent = '✅ 離線 AI 模型已載入';
+            } catch (e) {
+                console.warn('離線模型失敗，嘗試線上...', e);
+                try {
+                    model = await cocoSsd.load();
+                    statusEl.textContent = '✅ 線上 AI 模型已載入';
+                } catch (e2) {
+                    statusEl.textContent = '❌ AI 模型載入失敗';
+                    return;
+                }
+            }
+            // 啟用所有偵測按鈕
+            document.querySelectorAll('.ai-detect-btn').forEach(b => b.disabled = false);
+            document.getElementById('detect-all-btn').disabled = false;
+        }
+        initModel();
+
+        // ── DVR 登入 ──────────────────────────────────────────────────────────
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const username = document.getElementById('dvr-user').value.trim();
+            const password = document.getElementById('dvr-pass').value;
+            const msgEl = document.getElementById('login-msg');
+            const btn = document.getElementById('login-btn');
+
+            if (!username) { msgEl.textContent = '請輸入帳號'; return; }
+
+            btn.disabled = true;
+            btn.textContent = '登入中…';
+            msgEl.textContent = '';
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    document.getElementById('login-panel').style.display = 'none';
+                    document.getElementById('global-controls').style.display = 'flex';
+                    document.getElementById('channels').style.display = 'flex';
+                    // 登入成功後立即抓取所有通道截圖
+                    CHANNELS.forEach(ch => fetchSnapshot(ch));
+                    startAutoRefresh();
+                } else {
+                    msgEl.textContent = data.error || '登入失敗';
+                    btn.disabled = false;
+                    btn.textContent = '登入';
+                }
+            } catch (e) {
+                msgEl.textContent = '無法連線到代理伺服器，請確認 server.py 已啟動';
+                btn.disabled = false;
+                btn.textContent = '登入';
+            }
+        });
+
+        // Enter 鍵登入
+        ['dvr-user', 'dvr-pass'].forEach(id => {
+            document.getElementById(id).addEventListener('keydown', e => {
+                if (e.key === 'Enter') document.getElementById('login-btn').click();
+            });
+        });
+
+        // ── 截圖抓取：從代理伺服器取得 JPEG 畫到 canvas ──────────────────────
+        function fetchSnapshot(ch) {
+            const canvas = document.getElementById(`canvas-${ch}`);
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            return new Promise(resolve => {
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, 640, 480);
+                    baseFrames[ch] = ctx.getImageData(0, 0, 640, 480);
+                    detectionResults[ch] = [];
+                    clearHTMLLabels(ch);
+                    redrawCanvas(ch);
+                    updateRoiSummary(ch);
+                    resolve(true);
+                };
+                img.onerror = () => {
+                    ctx.fillStyle = '#111';
+                    ctx.fillRect(0, 0, 640, 480);
+                    ctx.fillStyle = '#555';
+                    ctx.font = '16px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`通道 ${ch.toString().padStart(2, '0')} — 截圖失敗`, 320, 240);
+                    baseFrames[ch] = ctx.getImageData(0, 0, 640, 480);
+                    detectionResults[ch] = [];
+                    redrawCanvas(ch);
+                    updateRoiSummary(ch);
+                    resolve(false);
+                };
+                // 加時間戳避免瀏覽器快取
+                img.src = `/api/snapshot?ch=${ch}&t=${Date.now()}`;
+            });
+        }
+
+        // ── 全部刷新 ──────────────────────────────────────────────────────────
+        document.getElementById('refresh-all-btn').addEventListener('click', () => {
+            CHANNELS.forEach(ch => fetchSnapshot(ch));
+        });
+
+        // ── 自動刷新 ──────────────────────────────────────────────────────────
+        // 全局變量: 用來管理定時器，方便清理。
+        //let autoRefreshTimer = null;
+
+        /**
+         * 開始自動偵測循環。它會在設定的時間間隔內重複執行：
+         * 1. 對每個頻道進行畫面快照 (fetchSnapshot)。
+         * 2. 等待畫面繪製完成後，立即執行 AI 偵測 (runDetect)。
+         */
+        function startAutoRefresh() {
+            const select = document.getElementById('refresh-rate');
+
+            // 核心運行單元：這是一個 async function，讓它能夠使用 await 來控制流程。
+            const runDetectionCycle = async () => {
+                console.log('--- Starting automatic detection cycle ---');
+                for (const ch of CHANNELS) {
+                    // 1. 第一步: 捕捉畫面到 Canvas 上
+                    await fetchSnapshot(ch);
+
+                    // 等待一個短暫時間，讓瀏覽器有足夠的時間載入圖片並完成繪圖操作。
+                    await new Promise(resolve => setTimeout(resolve, 50));
+
+                    // 2. 第二步: 在捕捉的畫面基礎上執行 AI 偵測邏輯
+                    await runDetect(ch);
+                }
+                console.log('--- Detection cycle completed ---');
+            };
+
+            const setupTimer = () => {
+                if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+
+                const interval = parseInt(select.value);
+
+                if (interval > 0) {
+                    // 將 runDetectionCycle 包裝到 setInterval，達到週期性執行。
+                    autoRefreshTimer = setInterval(runDetectionCycle, interval);
+                    console.log(`Auto-refresh set to ${interval}ms interval.`);
+                } else {
+                    clearInterval(autoRefreshTimer);
+                    autoRefreshTimer = null;
+                }
+            };
+
+            // 事件監聽器：當使用者改變刷新速率時，重新設定計時器。
+            select.addEventListener('change', setupTimer);
+
+            // 初始化運行：啟動一次第一次的偵測循環。
+            setupTimer();
+        }
+
+        function redrawCanvas(ch, previewBox = null) {
+            const canvas = document.getElementById(`canvas-${ch}`);
+            const ctx = canvas.getContext('2d');
+
+            if (baseFrames[ch]) {
+                ctx.putImageData(baseFrames[ch], 0, 0);
+            }
+
+            detectionResults[ch].forEach(pred => drawDetection(ctx, pred));
+            roiBoxes[ch].forEach((box, index) => drawRoiBox(ctx, box, index + 1));
+
+            if (previewBox) {
+                drawRoiBox(ctx, previewBox, null, true);
+            }
+        }
+
+        function drawDetection(ctx, pred) {
+            const [x, y, w, h] = pred.bbox;
+            const label = `${pred.class}  ${Math.round(pred.score * 100)}%`;
+
+            // 偵測框
+            ctx.strokeStyle = '#6366f1';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+
+            // 填色背景
+            ctx.fillStyle = 'rgba(99,102,241,0.15)';
+            ctx.fillRect(x, y, w, h);
+
+            // 標籤背景
+            ctx.font = '13px Arial';
+            const textW = ctx.measureText(label).width + 12;
+            ctx.fillStyle = '#6366f1';
+            ctx.fillRect(x, Math.max(0, y - 20), textW, 20);
+
+            // 標籤文字
+            ctx.fillStyle = '#fff';
+            ctx.fillText(label, x + 6, Math.max(13, y - 5));
+        }
+
+        function drawRoiBox(ctx, box, index = null, isPreview = false) {
+            ctx.save();
+            ctx.strokeStyle = isPreview ? '#fbbf24' : '#10b981';
+            ctx.fillStyle = isPreview ? 'rgba(251,191,36,0.12)' : 'rgba(16,185,129,0.12)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash(isPreview ? [6, 4] : [8, 4]);
+            ctx.fillRect(box.x, box.y, box.w, box.h);
+            ctx.strokeRect(box.x, box.y, box.w, box.h);
+            ctx.setLineDash([]);
+
+            if (index !== null) {
+                const label = `AI 範圍 ${index}`;
+                ctx.font = '13px Arial';
+                const textW = ctx.measureText(label).width + 12;
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(box.x, Math.max(0, box.y - 20), textW, 20);
+                ctx.fillStyle = '#fff';
+                ctx.fillText(label, box.x + 6, Math.max(13, box.y - 5));
+            }
+            ctx.restore();
+        }
+
+        function getCanvasPoint(canvas, event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (event.clientX - rect.left) * (canvas.width / rect.width),
+                y: (event.clientY - rect.top) * (canvas.height / rect.height)
+            };
+        }
+
+        function normalizeBox(start, end) {
+            const x = Math.max(0, Math.min(start.x, end.x));
+            const y = Math.max(0, Math.min(start.y, end.y));
+            const w = Math.min(640 - x, Math.abs(end.x - start.x));
+            const h = Math.min(480 - y, Math.abs(end.y - start.y));
+            return { x, y, w, h };
+        }
+
+        function predictionInRoi(ch, pred) {
+            if (roiBoxes[ch].length === 0) return true;
+
+            const { centerX, centerY } = getPredictionCenter(pred);
+
+            return roiBoxes[ch].some(box =>
+                pointInBox(centerX, centerY, box)
+            );
+        }
+
+        function getPredictionCenter(pred) {
+            const [x, y, w, h] = pred.bbox;
+            return {
+                centerX: x + w / 2,
+                centerY: y + h / 2
+            };
+        }
+
+        function pointInBox(x, y, box) {
+            return x >= box.x &&
+                x <= box.x + box.w &&
+                y >= box.y &&
+                y <= box.y + box.h;
+        }
+
+        function getPredictionsInBox(ch, box) {
+            return detectionResults[ch].filter(pred => {
+                const { centerX, centerY } = getPredictionCenter(pred);
+                return pointInBox(centerX, centerY, box);
+            });
+        }
+
+        function countByClass(predictions) {
+            return predictions.reduce((counts, pred) => {
+                counts[pred.class] = (counts[pred.class] || 0) + 1;
+                return counts;
+            }, {});
+        }
+
+        function formatCounts(counts) {
+            const entries = Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
+            if (entries.length === 0) return '未偵測到物件';
+            return entries.map(([className, count]) => `${className}: ${count}`).join('，');
+        }
+
+        function escapeHTML(value) {
+            return String(value).replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function updateRoiSummary(ch) {
+            const summary = document.getElementById(`roi-summary-${ch}`);
+            if (!summary) return;
+
+            if (roiBoxes[ch].length === 0) {
+                const totalCounts = countByClass(detectionResults[ch]);
+                summary.innerHTML = `
+                    <div class="roi-summary-title">AI 範圍物件數量</div>
+                    <div class="roi-summary-empty">尚未設定 AI 範圍；目前未限制偵測區域。${escapeHTML(formatCounts(totalCounts))}</div>
+                `;
+                return;
+            }
+
+            const items = roiBoxes[ch].map((box, index) => {
+                const predictions = getPredictionsInBox(ch, box);
+                const countsText = escapeHTML(formatCounts(countByClass(predictions)));
+                return `<li>AI 範圍 ${index + 1}：${countsText}</li>`;
+            }).join('');
+
+            summary.innerHTML = `
+                <div class="roi-summary-title">AI 範圍物件數量</div>
+                <ul>${items}</ul>
+            `;
+        }
+
+        function updateAllRoiSummaries() {
+            CHANNELS.forEach(ch => updateRoiSummary(ch));
+        }
+
+        function speakDetectionAlerts(ch) {
+            if (roiBoxes[ch].length === 0 || !window.speechSynthesis) return;
+
+            const now = Date.now();
+            const detectedClasses = new Set(detectionResults[ch].map(pred => pred.class));
+
+            Object.entries(speechTextByClass).forEach(([className, speechText]) => {
+                if (!detectedClasses.has(className)) return;
+                if (now - speechLastSpokenAt[className] < speechCooldownMs) return;
+
+                speechLastSpokenAt[className] = now;
+                const utterance = new SpeechSynthesisUtterance(speechText);
+                utterance.lang = 'zh-TW';
+                utterance.rate = 1;
+                window.speechSynthesis.speak(utterance);
+            });
+        }
+
+        function shouldCapturePhoto(ch) {
+            if (!photoCaptureEnabled) return false;
+            return detectionResults[ch].some(pred => pred.class === 'person' || pred.class === 'car');
+        }
+
+        async function capturePhoto(ch) {
+            const canvas = document.getElementById(`canvas-${ch}`);
+            const imageData = canvas.toDataURL('image/jpeg', 0.9);
+
+            try {
+                const res = await fetch('/api/save-photo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData, channel: ch })
+                });
+                const data = await res.json();
+
+                if (!data.success) {
+                    addPhotoToPage(ch, imageData, data.error || '後端存檔失敗');
+                }
+            } catch (e) {
+                addPhotoToPage(ch, imageData, '無法連線到存檔 API');
+            }
+        }
+
+        function addPhotoToPage(ch, imageData, reason) {
+            const panel = document.getElementById('photo-panel');
+            const gallery = document.getElementById('photo-gallery');
+            const filename = `${photoFallbackNumber++}.jpg`;
+            const card = document.createElement('div');
+            card.className = 'photo-card';
+            card.innerHTML = `
+                <img src="${imageData}" alt="${filename}">
+                <div>${filename}</div>
+                <div>通道 ${String(ch).padStart(2, '0')}</div>
+                <div>${escapeHTML(reason)}</div>
+            `;
+            gallery.prepend(card);
+            panel.style.display = 'block';
+        }
+
+        function toggleRoiDrawing(ch) {
+            drawingChannel = drawingChannel === ch ? null : ch;
+            draftRoiBox = null;
+            updateRoiButtons();
+            CHANNELS.forEach(channel => redrawCanvas(channel));
+        }
+
+        function updateRoiButtons() {
+            CHANNELS.forEach(ch => {
+                const btn = document.getElementById(`roi-toggle-${ch}`);
+                const canvas = document.getElementById(`canvas-${ch}`);
+                const active = drawingChannel === ch;
+                btn.classList.toggle('active', active);
+                btn.textContent = active ? '完成範圍' : '▣ 畫範圍';
+                canvas.style.cursor = active ? 'crosshair' : 'default';
+            });
+        }
+
+        function clearRoiBoxes(ch) {
+            roiBoxes[ch] = [];
+            detectionResults[ch] = [];
+            redrawCanvas(ch);
+            updateRoiSummary(ch);
+        }
+
+        function setupRoiDrawing() {
+            CHANNELS.forEach(ch => {
+                const canvas = document.getElementById(`canvas-${ch}`);
+                let startPoint = null;
+
+                canvas.addEventListener('mousedown', event => {
+                    if (drawingChannel !== ch) return;
+                    startPoint = getCanvasPoint(canvas, event);
+                    draftRoiBox = { x: startPoint.x, y: startPoint.y, w: 0, h: 0 };
+                });
+
+                canvas.addEventListener('mousemove', event => {
+                    if (drawingChannel !== ch || !startPoint) return;
+                    draftRoiBox = normalizeBox(startPoint, getCanvasPoint(canvas, event));
+                    redrawCanvas(ch, draftRoiBox);
+                });
+
+                canvas.addEventListener('mouseup', event => {
+                    if (drawingChannel !== ch || !startPoint) return;
+                    const box = normalizeBox(startPoint, getCanvasPoint(canvas, event));
+                    startPoint = null;
+                    draftRoiBox = null;
+
+                    if (box.w >= 12 && box.h >= 12) {
+                        roiBoxes[ch].push(box);
+                        detectionResults[ch] = detectionResults[ch].filter(pred => predictionInRoi(ch, pred));
+                    }
+                    redrawCanvas(ch);
+                    updateRoiSummary(ch);
+                });
+
+                canvas.addEventListener('mouseleave', () => {
+                    if (drawingChannel !== ch || !startPoint) return;
+                    startPoint = null;
+                    draftRoiBox = null;
+                    redrawCanvas(ch);
+                });
+            });
+        }
+
+        setupRoiDrawing();
+
+        // ── AI 偵測 ───────────────────────────────────────────────────────────
+        async function runDetect(ch) {
+            if (!model) return;
+            const canvas = document.getElementById(`canvas-${ch}`);
+            const ctx = canvas.getContext('2d');
+
+            clearHTMLLabels(ch);
+
+            if (baseFrames[ch]) {
+                ctx.putImageData(baseFrames[ch], 0, 0);
+            }
+
+            const predictions = await model.detect(canvas);
+            detectionResults[ch] = predictions.filter(pred =>
+                pred.score >= confidenceThreshold && predictionInRoi(ch, pred)
+            );
+
+            redrawCanvas(ch);
+            updateRoiSummary(ch);
+            speakDetectionAlerts(ch);
+            if (shouldCapturePhoto(ch)) {
+                await capturePhoto(ch);
+            }
+        }
+
+        // ── 全部 AI 偵測 ─────────────────────────────────────────────────────
+        document.getElementById('detect-all-btn').addEventListener('click', () => {
+            CHANNELS.forEach(ch => runDetect(ch));
+        });
+
+        // ── 清除偵測結果 ─────────────────────────────────────────────────────
+        function clearDetect(ch) {
+            // 清除 AI 偵測框，保留手動設定的 AI 範圍
+            detectionResults[ch] = [];
+            redrawCanvas(ch);
+            updateRoiSummary(ch);
+        }
+
+        function clearHTMLLabels(ch) {
+            // 保留給未來擴充（目前偵測框直接畫在 canvas 上）
+        }
+    </script>
+</body>
+
+</html>
