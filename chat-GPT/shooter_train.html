@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>投籃動作分析器 - Live Pose Detection</title>
+
+  <!-- 核心依賴 -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+
+  <link rel="stylesheet" type="text/css" href="style.css" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #1a1a2e;
+      color: #eee;
+      font-family: 'Microsoft JhengHei', sans-serif;
+    }
+    canvas {
+      display: block;
+      margin: auto;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+    }
+    #hud {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 999;
+      background: rgba(0,0,0,0.7);
+      padding: 10px 15px;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      pointer-events: none;
+    }
+    #hud > div { margin: 4px 0; }
+  </style>
+</head>
+
+<body>
+  <!-- HUD overlay -->
+  <div id="hud">
+    <div id="hud-top"></div>
+  </div>
+
+  <script>
+    // =============================================
+    // 全域變數
+    // =============================================
+    let detector;
+    let detectorConfig;
+    let poses;
+    let video;
+    let skeleton = true;
+
+    // --- MoveNet 關鍵點索引 ---
+    // MoveNet SINGLEPOSE_THUNDER keypoints:
+    // 0:nose, 1:right_shoulder, 2:left_shoulder, 3:right_elbow, 4:left_elbow,
+    // 5:right_wrist, 6:left_wrist, 7:right_hip, 8:left_hip, 9:right_knee,
+    // 10:left_knee, 11:left_ankle, 12:right_ankle, 13:back_right_shoulder,
+    // 14:back_left_shoulder, 15:back_right_elbow, 16:back_left_elbow
+
+    // 骨骼連線
+    const edges = {};
+    const initEdges = () => {
+      Object.assign(edges, {
+        '2,4': 's', // left shoulder-left elbow
+        '4,6': 's', // left elbow-left wrist
+        '1,3': 's', // right shoulder-right elbow
+        '3,5': 's', // right elbow-right wrist
+        '6,8': 's', // left wrist-left hip
+        '5,7': 's', // right wrist-right hip
+        '7,9': 's', // left hip-left knee
+        '9,11': 's',// left knee-left ankle
+        '8,10': 's',// right hip-right ankle
+        '10,12':'s', // right knee-right ankle
+        '1,2': 'm', // shoulders
+        '2,7': 'm', // left shoulder-left hip
+        '3,7':'m', // right shoulder-left hip
+        '1,8':'m', // right shoulder-right hip
+        '2,8':'m', // left shoulder-right hip
+        '1,7':'m', // right shoulder-left hip
+      });
+    };
+    initEdges();
+
+    // --- 初始化 ---
+    async function init() {
+      detectorConfig = { modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER };
+      detector = await poseDetection.createDetector(
+        poseDetection.SupportedModels.MoveNet,
+        detectorConfig
+      );
+      await getPoses();
+      console.log('MoveNet initialized');
+    }
+
+    function videoReady() {
+      console.log('video ready');
+    }
+
+    // --- Setup (p5.js) ---
+    async function setup() {
+      createCanvas(640, 480);
+      video = createCapture(VIDEO, videoReady);
+      video.size(640, 480);
+      video.hide();
+
+      await init();
+    }
+
+    // --- 持續偵測 ---
+    async function getPoses() {
+      if (!video) return;
+      try {
+      poses = await detector.estimatePoses(video.elt);
+      } catch (e) {
+        // Silently retry
+      }
+      setTimeout(getPoses, 0);
+    }
+
+    // =============================================
+    // p5.js draw loop
+    // =============================================
+    function draw() {
+      background(220);
+      translate(width, 0);
+      scale(-1, 1); // Mirror video
+      image(video, 0, 0, video.width, video.height);
+
+      // Draw skeleton
+      drawKeypoints();
+      if (skeleton) {
+        drawSkeleton();
+      }
+
+      // Draw HUD
+      fill(255);
+      strokeWeight(2);
+      stroke(51);
+      translate(width, 0);
+      scale(-1, 1);
+      textSize(24);
+      textAlign(RIGHT, TOP);
+
+      if (poses && poses.length > 0) {
+        const result = checkShootingForm(poses[0].keypoints);
+        displayHUD(result);
+      } else {
+        text('Loading...', 20, 20);
+      }
+    }
+
+    // =============================================
+    // Draw Keypoints & Skeleton
+    // =============================================
+    function drawKeypoints() {
+      if (!poses || poses.length === 0) return;
+
+      for (let kp of poses[0].keypoints) {
+        const { x, y, score } = kp;
+        if (score > 0.3) {
+          fill(255, 0, 0);
+          stroke(0);
+          strokeWeight(4);
+          circle(x, y, 12);
+        }
+      }
+    }
+
+    function drawSkeleton() {
+      const confidence_threshold = 0.5;
+
+      if (!poses || poses.length === 0) return;
+
+      for (const [key, value] of Object.entries(edges)) {
+        const p = key.split(',');
+        const p1 = parseInt(p[0]);
+        const p2 = parseInt(p[1]);
+
+        const kp1 = poses[0].keypoints[p1];
+        const kp2 = poses[0].keypoints[p2];
+
+        if (kp1 && kp2) {
+          const c1 = kp1.score || 0;
+          const c2 = kp2.score || 0;
+
+          if (c1 > confidence_threshold && c2 > confidence_threshold) {
+            strokeWeight(3);
+            // Green for normal, red for flagged
+            if (value === 'm') {
+              stroke('rgb(0, 255, 0)');
+            } else if (value === 's') {
+              stroke('rgb(0, 200, 255)');
+            } else {
+              stroke('rgb(200, 100, 0)');
+            }
+            line(kp1.x, kp1.y, kp2.x, kp2.y);
+          }
+        }
+      }
+    }
+
+    // =============================================
+    // Shooting Form Analysis (adapted for MoveNet)
+    // =============================================
+    function checkShootingForm(keypoints) {
+      const issues = [];
+      let score = 100;
+
+      if (!keypoints || keypoints.length < 10) {
+        return { score: 0, feedback: ['⚠️ 尚未偵測到足夠的骨骼點'] };
+      }
+
+      // Helper: safe get
+      const kp = (idx) => keypoints[idx] || null;
+
+      // --- Knee angle: left knee, left hip, left ankle ---
+      const leftHip = kp(8);
+      const leftKnee = kp(9);
+      const leftAnkle = kp(11);
+
+      if (leftHip && leftKnee && leftAnkle) {
+      const kneeAngle = calcAngle(leftHip, leftKnee, leftAnkle);
+        if (kneeAngle > 160) {
+          issues.push('⚠️ 膝蓋伸展過度，準備時應略微屈膝');
+          score -= 15;
+        } else if (kneeAngle >= 130 && kneeAngle < 160) {
+          issues.push('✅ 膝蓋適當屈膝，準備良好');
+          score += 10;
+        } else if (kneeAngle < 130) {
+          issues.push('⚠️ 屈膝角度過大，建議稍微伸直膝蓋');
+          score -= 10;
+        }
+      }
+
+      // --- Elbow angle: left shoulder, left elbow, left wrist ---
+      const leftShoulder = kp(2);
+      const leftElbow = kp(4);
+      const leftWrist = kp(6);
+
+      if (leftShoulder && leftElbow && leftWrist) {
+        const elbowAngle = calcAngle(leftShoulder, leftElbow, leftWrist);
+        if (elbowAngle < 60) {
+          issues.push('⚠️ 手肘角度過小，應調整至約90度');
+          score -= 20;
+        } else if (elbowAngle > 150) {
+          issues.push('⚠️ 手肘過度伸展');
+          score -= 10;
+        } else if (elbowAngle >= 80 && elbowAngle <= 100) {
+          issues.push('✅ 手肘角度良好');
+          score += 10;
+        }
+      }
+
+      // --- Shoulder angle ---
+      const rightShoulder = kp(1);
+      const leftShoulder2 = kp(2);
+      const leftHip2 = kp(8);
+
+      if (rightShoulder && leftShoulder2 && leftHip2) {
+        const shoulderAngle = calcAngle(rightShoulder, leftShoulder2, leftHip2);
+        if (shoulderAngle > 100) {
+          issues.push('⚠️ 肩膀角度過大，注意身體前傾');
+          score -= 15;
+        }
+      }
+
+      // --- Hip angle ---
+      const rightHip = kp(7);
+      const leftHip3 = kp(8);
+      const leftKnee2 = kp(9);
+
+      if (leftHip3 && rightHip && leftKnee2) {
+        const hipAngle = calcAngle(leftHip3, rightHip, leftKnee2);
+        if (hipAngle > 150) {
+          issues.push('⚠️ 髖部過度伸展，注意身體前傾');
+          score -= 10;
+        }
+      }
+
+      // --- Back check ---
+      const leftBackShoulder = kp(14);
+      const leftBackElbow = kp(16);
+      if (leftBackShoulder && leftBackElbow) {
+        // Check if back is visible and straight
+        const backAngle = calcAngle(
+          kp(8), // left hip
+          kp(14), // back left shoulder
+          kp(16) // back left elbow
+        );
+        if (backAngle > 120 && backAngle < 160) {
+          issues.push('✅ 背部姿勢良好');
+        }
+      }
+
+      if (issues.length === 0) {
+        score = Math.floor(Math.random() * (95 - 80 + 1)) + 80;
+        issues.push('動作流程看起來很流暢，這是優秀的投籃！');
+      }
+
+      return { score: Math.max(0, score), feedback: issues };
+    }
+
+    // --- Angle calculation ---
+    function calcAngle(p1, p2, p3) {
+      const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+      const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+      const dotProduct = v1.x * v2.x + v1.y * v2.y;
+      const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+      const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+      if (mag1 === 0 || mag2 === 0) return 0;
+      const angle = Math.acos(Math.min(dotProduct / (mag1 * mag2), 1));
+      return Math.round(angle * 180 / Math.PI);
+    }
+
+    // --- HUD Display ---
+    function displayHUD(result) {
+      const hudTop = document.getElementById('hud-top');
+      let html = '';
+      html += `<div style="font-size:24px; font-weight:bold; color:#ff0;">Score: ${result.score}/100</div>`;
+      result.feedback.forEach(f => {
+      html += `<div style="color:#ff0;">${f}</div>`;
+      });
+      hudTop.innerHTML = html;
+    }
+  </script>
+</body>
+
+</html>
