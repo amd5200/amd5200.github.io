@@ -1,360 +1,1918 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>投籃動作分析器 - Live Pose Detection</title>
+  <meta charset="utf-8">
+  <title>AeroShot AI - 投籃姿勢智能分析儀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Outfit:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- TensorFlow.js & PoseNet -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js"></script>
 
-  <!-- 核心依賴 -->
-   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
-   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
-   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
-   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <style>
+    :root {
+      --bg-darker: #08090f;
+      --bg-dark: #0f111a;
+      --bg-card: #151824;
+      --border-color: rgba(255, 255, 255, 0.08);
+      
+      --accent-cyan: #00f0ff;
+      --accent-green: #00ff66;
+      --accent-orange: #ff9900;
+      --accent-red: #ff3366;
+      --accent-purple: #bd00ff;
+      
+      --text-main: #f5f6fa;
+      --text-muted: #8a8f9f;
+      --glow-cyan: 0 0 15px rgba(0, 240, 255, 0.4);
+      --glow-green: 0 0 15px rgba(0, 255, 102, 0.4);
+    }
 
-   <link rel="stylesheet" type="text/css" href="style.css" />
-   <style>
-     html, body {
-       margin: 0;
-       padding: 0;
-       width: 100vw;
-       height: 100vh;
-       overflow: hidden;
-       background-color: #1a1a2e;
-       color: #eee;
-       font-family: 'Microsoft JhengHei', sans-serif;
-       /* 防止手機上自動偵測並放大 */
-       -webkit-text-size-adjust: 100%;
-       touch-action: none;
-       -ms-touch-action: none;
-     }
-     canvas {
-       display: block;
-       margin: auto;
-       position: fixed;
-       top: 0;
-       bottom: 0;
-       left: 0;
-       right: 0;
-       width: 100vw;
-       height: 100vh;
-     }
-     #hud {
-       position: fixed;
-       top: 10px;
-       left: 10px;
-       right: 10px;
-       z-index: 999;
-       background: rgba(0,0,0,0.7);
-       padding: 10px 15px;
-       border-radius: 8px;
-       color: #fff;
-       font-size: clamp(12px, 3vw, 14px);
-       pointer-events: none;
-     }
-     #hud > div { margin: 4px 0; }
-     /* 手機適配 */
-     @media (max-width: 768px) {
-       #hud {
-       top: 5px;
-       left: 5px;
-       right: 5px;
-       padding: 5px 10px;
-       }
-       #hud > div { font-size: clamp(12px, 3vw, 14px); margin: 2px 0; }
-     }
-   </style>
-  </head>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
+    body {
+      background-color: var(--bg-darker);
+      color: var(--text-main);
+      font-family: 'Outfit', 'Microsoft JhengHei', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: radial-gradient(circle at 10% 20%, rgba(0, 240, 255, 0.03) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(189, 0, 255, 0.03) 0%, transparent 40%);
+    }
+
+    /* Container */
+    .app-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 25px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--glow-cyan);
+    }
+
+    .logo-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: #fff;
+    }
+
+    .logo-text h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      background: linear-gradient(to right, #fff, var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* Top Controls */
+    .top-controls {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .btn {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.2);
+      transform: translateY(-2px);
+    }
+
+    .btn.active {
+      background: linear-gradient(135deg, var(--accent-cyan), rgba(0, 240, 255, 0.2));
+      border-color: var(--accent-cyan);
+      box-shadow: var(--glow-cyan);
+      color: #000;
+      font-weight: bold;
+    }
+    
+    .btn.active svg {
+      fill: #000;
+    }
+
+    .select-input {
+      background: var(--bg-dark);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 10px 15px;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.3s;
+    }
+
+    .select-input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    /* Main Section Grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 1024px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left Panel: Camera Stream */
+    .viewport-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      position: relative;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.4);
+    }
+
+    .panel-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+
+    .status-badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 145, 0, 0.1);
+      color: var(--accent-orange);
+      border: 1px solid rgba(255, 145, 0, 0.2);
+    }
+
+    .status-badge.ready {
+      background: rgba(0, 255, 102, 0.1);
+      color: var(--accent-green);
+      border: 1px solid rgba(0, 255, 102, 0.2);
+      box-shadow: 0 0 10px rgba(0, 255, 102, 0.1);
+    }
+
+    .status-badge.loading {
+      background: rgba(0, 240, 255, 0.1);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      animation: pulse 1.5s infinite;
+    }
+    
+    .status-badge.detecting {
+      background: rgba(189, 0, 255, 0.1);
+      color: var(--accent-purple);
+      border: 1px solid rgba(189, 0, 255, 0.2);
+      animation: pulse-purple 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.6; box-shadow: 0 0 5px rgba(0,240,255,0.1); }
+      50% { opacity: 1; box-shadow: 0 0 15px rgba(0,240,255,0.3); }
+      100% { opacity: 0.6; box-shadow: 0 0 5px rgba(0,240,255,0.1); }
+    }
+    
+    @keyframes pulse-purple {
+      0% { opacity: 0.6; box-shadow: 0 0 5px rgba(189,0,255,0.1); }
+      50% { opacity: 1; box-shadow: 0 0 15px rgba(189,0,255,0.3); }
+      100% { opacity: 0.6; box-shadow: 0 0 5px rgba(189,0,255,0.1); }
+    }
+
+    .media-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      display: none; /* hidden, drawn to canvas */
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* HUD overlay */
+    .hud-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    .hud-top-info {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .hud-item {
+      background: rgba(15, 17, 26, 0.75);
+      backdrop-filter: blur(4px);
+      border: 1px solid var(--border-color);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hud-center-state {
+      align-self: center;
+      text-align: center;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      padding: 15px 30px;
+      border-radius: 10px;
+      border: 1px dashed var(--accent-cyan);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+      animation: tracking-glow 2s infinite;
+      display: none;
+    }
+
+    .hud-center-state.visible {
+      display: block;
+    }
+
+    .hud-center-state h3 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      margin-bottom: 4px;
+    }
+
+    .hud-center-state p {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    @keyframes tracking-glow {
+      0% { border-color: rgba(0, 240, 255, 0.4); box-shadow: 0 0 10px rgba(0, 240, 255, 0.1); }
+      50% { border-color: rgba(0, 240, 255, 1); box-shadow: 0 0 25px rgba(0, 240, 255, 0.3); }
+      100% { border-color: rgba(0, 240, 255, 0.4); box-shadow: 0 0 10px rgba(0, 240, 255, 0.1); }
+    }
+
+    .hud-bottom-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .hud-warnings {
+      background: rgba(255, 51, 102, 0.15);
+      border: 1px solid var(--accent-red);
+      color: var(--accent-red);
+      padding: 8px 15px;
+      border-radius: 8px;
+      font-size: 12px;
+      max-width: 70%;
+      backdrop-filter: blur(4px);
+      display: none;
+    }
+
+    .hud-warnings.visible {
+      display: block;
+      animation: shake 0.5s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
+    }
+
+    .viewport-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .video-file-label {
+      flex-grow: 1;
+    }
+
+    /* Right Panel: Analytics Dashboard */
+    .dashboard-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    /* Score Ring Widget */
+    .score-summary-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 10px 0;
+    }
+
+    .score-ring-wrapper {
+      position: relative;
+      width: 140px;
+      height: 140px;
+    }
+
+    .score-ring-svg {
+      transform: rotate(-90deg);
+      width: 100%;
+      height: 100%;
+    }
+
+    .score-ring-bg {
+      fill: none;
+      stroke: rgba(255,255,255,0.03);
+      stroke-width: 10px;
+    }
+
+    .score-ring-progress {
+      fill: none;
+      stroke: url(#cyan-green-gradient);
+      stroke-width: 10px;
+      stroke-linecap: round;
+      stroke-dasharray: 440;
+      stroke-dashoffset: 440;
+      transition: stroke-dashoffset 1s ease-out;
+    }
+
+    .score-ring-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .score-ring-num {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 38px;
+      font-weight: 900;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .score-ring-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+
+    .sub-scores-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      flex-grow: 1;
+    }
+
+    .sub-score-item {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px 15px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .sub-score-name {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .sub-score-val-wrapper {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .sub-score-val {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+    
+    .sub-score-unit {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Live Gauges */
+    .gauges-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .gauge-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .gauge-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .gauge-label {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .gauge-label::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+    }
+
+    .gauge-item:nth-child(2) .gauge-label::before { background: var(--accent-green); }
+    .gauge-item:nth-child(3) .gauge-label::before { background: var(--accent-purple); }
+
+    .gauge-value {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 600;
+    }
+
+    .gauge-track {
+      height: 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 4px;
+      transition: width 0.1s ease-out;
+      background: linear-gradient(to right, var(--accent-cyan), #00bcff);
+    }
+
+    .gauge-item:nth-child(2) .gauge-fill {
+      background: linear-gradient(to right, var(--accent-green), #00cc52);
+    }
+    
+    .gauge-item:nth-child(3) .gauge-fill {
+      background: linear-gradient(to right, var(--accent-purple), #a100db);
+    }
+
+    /* Feedback Box */
+    .feedback-box {
+      background: rgba(0, 240, 255, 0.02);
+      border: 1px solid rgba(0, 240, 255, 0.1);
+      border-left: 4px solid var(--accent-cyan);
+      border-radius: 8px;
+      padding: 15px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-main);
+      min-height: 80px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      transition: all 0.3s;
+    }
+
+    .feedback-box.excellent {
+      background: rgba(0, 255, 102, 0.02);
+      border-color: rgba(0, 255, 102, 0.1);
+      border-left-color: var(--accent-green);
+    }
+
+    .feedback-box.warning {
+      background: rgba(255, 153, 0, 0.02);
+      border-color: rgba(255, 153, 0, 0.1);
+      border-left-color: var(--accent-orange);
+    }
+
+    .feedback-box svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* Voice Coach controls */
+    .voice-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border-color);
+      padding: 10px 15px;
+      border-radius: 10px;
+      font-size: 13px;
+    }
+
+    .switch-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .switch-input {
+      display: none;
+    }
+
+    .switch-slider {
+      width: 40px;
+      height: 20px;
+      background-color: rgba(255,255,255,0.1);
+      border-radius: 20px;
+      position: relative;
+      transition: background-color 0.3s;
+    }
+
+    .switch-slider::before {
+      content: "";
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+
+    .switch-input:checked + .switch-slider {
+      background-color: var(--accent-green);
+    }
+
+    .switch-input:checked + .switch-slider::before {
+      transform: translateX(20px);
+    }
+
+    /* Shot History */
+    .history-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      max-height: 250px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 12px 15px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      background: rgba(255,255,255,0.03);
+      font-weight: 600;
+      color: var(--text-muted);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    tr:hover td {
+      background: rgba(255,255,255,0.01);
+    }
+
+    .badge-score {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .badge-score.high { background: rgba(0, 255, 102, 0.15); color: var(--accent-green); }
+    .badge-score.medium { background: rgba(255, 153, 0, 0.15); color: var(--accent-orange); }
+    .badge-score.low { background: rgba(255, 51, 102, 0.15); color: var(--accent-red); }
+
+    .btn-icon {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+      background: rgba(255,51,102,0.1);
+      color: var(--accent-red);
+    }
+
+    /* Modal / Alert Notification styles */
+    .empty-state {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--text-muted);
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .empty-state svg {
+      width: 40px;
+      height: 40px;
+      fill: rgba(255,255,255,0.1);
+    }
+  </style>
+</head>
 <body>
-  <!-- HUD overlay -->
-  <div id="hud">
-    <div id="hud-top"></div>
+
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header>
+      <div class="logo-container">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <h1>AEROSHOT AI</h1>
+          <p>Basketball Shooting Motion Analyzer</p>
+        </div>
+      </div>
+
+      <!-- Settings in Header -->
+      <div class="top-controls">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 12px; color: var(--text-muted);">慣用手:</span>
+          <select id="hand-selector" class="select-input" onchange="switchShootingHand(this.value)">
+            <option value="right" selected>右手投籃 (Right Hand)</option>
+            <option value="left">左手投籃 (Left Hand)</option>
+          </select>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 12px; color: var(--text-muted);">門檻值:</span>
+          <select id="score-threshold" class="select-input">
+            <option value="0.5">0.5 (寬鬆)</option>
+            <option value="0.65">0.65 (適中)</option>
+            <option value="0.8" selected>0.80 (嚴格)</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN BODY GRID -->
+    <div class="main-grid">
+      
+      <!-- LEFT: VIEWPORT & SOURCE SELECTION -->
+      <div class="viewport-panel">
+        <div class="panel-title">
+          <span>即時影像分析儀 (Live Canvas Feed)</span>
+          <div id="status-badge" class="status-badge loading">
+            <span class="dot">●</span> <span id="status-text">Loading Model...</span>
+          </div>
+        </div>
+
+        <div class="media-container">
+          <video id="video" width="640" height="480" preload="auto" loop muted></video>
+          <canvas id="canvas" width="640" height="480"></canvas>
+          
+          <!-- Sci-fi HUD overlay -->
+          <div class="hud-overlay">
+            <div class="hud-top-info">
+              <div class="hud-item" id="hud-fps-box">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+                <span>FPS: <span id="hud-fps">0</span></span>
+              </div>
+              <div class="hud-item" id="hud-hand-box">
+                <span id="hud-hand-label">R-HAND</span>
+              </div>
+            </div>
+            
+            <div class="hud-center-state" id="hud-state-banner">
+              <h3 id="hud-state-title">IDLE</h3>
+              <p id="hud-state-sub">READY FOR SHOT</p>
+            </div>
+            
+            <div class="hud-bottom-info">
+              <div class="hud-warnings" id="hud-warning-box">
+                ⚠️ 請將全身退入相機畫面中！
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls below view port -->
+        <div class="viewport-controls">
+          <button id="btn-webcam" class="btn" onclick="startWebcam()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+            </svg>
+            開啟相機
+          </button>
+          
+          <button id="btn-demo" class="btn" onclick="loadDemoVideo()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            播放本機 Demo 影片
+          </button>
+          
+          <div class="video-file-label">
+            <input type="file" id="video-file" accept="video/*" style="display:none;" onchange="handleVideoUpload(event)">
+            <button class="btn" onclick="document.getElementById('video-file').click()" style="width: 100%;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+              </svg>
+              上傳自訂影片
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: ANALYSIS DASHBOARD -->
+      <div class="dashboard-panel">
+        
+        <!-- Overall Score Card -->
+        <div class="card">
+          <div class="panel-title">
+            <span>投籃評分報告 (Analysis Report)</span>
+          </div>
+          
+          <div class="score-summary-container">
+            <!-- Score Ring -->
+            <div class="score-ring-wrapper">
+              <svg class="score-ring-svg" viewBox="0 0 160 160">
+                <defs>
+                  <linearGradient id="cyan-green-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="var(--accent-cyan)" />
+                    <stop offset="100%" stop-color="var(--accent-green)" />
+                  </linearGradient>
+                </defs>
+                <circle class="score-ring-bg" cx="80" cy="80" r="70"></circle>
+                <circle id="score-ring-fill" class="score-ring-progress" cx="80" cy="80" r="70"></circle>
+              </svg>
+              <div class="score-ring-text">
+                <div id="overall-score" class="score-ring-num">00</div>
+                <div class="score-ring-label">OVERALL</div>
+              </div>
+            </div>
+            
+            <!-- Sub-scores Grid -->
+            <div class="sub-scores-grid">
+              <div class="sub-score-item">
+                <span class="sub-score-name">準備手肘 (Set Point)</span>
+                <div class="sub-score-val-wrapper">
+                  <span id="score-setpoint" class="sub-score-val">--</span>
+                  <span class="sub-score-unit">分</span>
+                </div>
+              </div>
+              <div class="sub-score-item">
+                <span class="sub-score-name">膝蓋驅動 (Knee Drive)</span>
+                <div class="sub-score-val-wrapper">
+                  <span id="score-knee" class="sub-score-val">--</span>
+                  <span class="sub-score-unit">分</span>
+                </div>
+              </div>
+              <div class="sub-score-item">
+                <span class="sub-score-name">釋放延伸 (Extension)</span>
+                <div class="sub-score-val-wrapper">
+                  <span id="score-extension" class="sub-score-val">--</span>
+                  <span class="sub-score-unit">分</span>
+                </div>
+              </div>
+              <div class="sub-score-item">
+                <span class="sub-score-name">軀幹平衡 (Balance)</span>
+                <div class="sub-score-val-wrapper">
+                  <span id="score-balance" class="sub-score-val">--</span>
+                  <span class="sub-score-unit">分</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Audio Coaching Switch -->
+          <div class="voice-controls">
+            <span>語音教練語音提示 (Voice Coach)</span>
+            <label class="switch-label">
+              <input type="checkbox" id="voice-coach-toggle" class="switch-input" checked>
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          
+          <!-- Live Feedback -->
+          <div id="feedback-box" class="feedback-box">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm0-4h-2V7h2v7z"/>
+            </svg>
+            <div id="feedback-text" style="font-weight: 400; font-size: 13.5px;">
+              等待投籃動作偵測中... 請面對鏡頭，進行完整的「屈膝 -> 舉球 -> 投籃延伸 -> 停頓出手後擺臂」姿勢。
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Joint Angles Card -->
+        <div class="card">
+          <div class="panel-title">
+            <span>即時關節生理指標 (Live Metrics)</span>
+          </div>
+          
+          <div class="gauges-container">
+            <div class="gauge-item">
+              <div class="gauge-info">
+                <span class="gauge-label">投籃側手肘角度 (Elbow)</span>
+                <span id="val-elbow" class="gauge-value">0°</span>
+              </div>
+              <div class="gauge-track">
+                <div id="fill-elbow" class="gauge-fill"></div>
+              </div>
+            </div>
+            
+            <div class="gauge-item">
+              <div class="gauge-info">
+                <span class="gauge-label">投籃側膝蓋角度 (Knee)</span>
+                <span id="val-knee" class="gauge-value">0°</span>
+              </div>
+              <div class="gauge-track">
+                <div id="fill-knee" class="gauge-fill"></div>
+              </div>
+            </div>
+            
+            <div class="gauge-item">
+              <div class="gauge-info">
+                <span class="gauge-label">軀幹前傾角度 (Body Tilt)</span>
+                <span id="val-tilt" class="gauge-value">0°</span>
+              </div>
+              <div class="gauge-track">
+                <div id="fill-tilt" class="gauge-fill"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- BOTTOM SECTION: SHOT HISTORY -->
+    <div class="history-panel">
+      <div class="history-header">
+        <h2 style="font-family: 'Orbitron', sans-serif; font-size: 16px; font-weight: 600; letter-spacing: 1px;">投籃歷史紀錄 (Shot History)</h2>
+        <button class="btn" style="padding: 6px 15px; font-size: 12px;" onclick="exportHistoryToCSV()">
+          匯出 CSV 資料
+        </button>
+      </div>
+
+      <div class="table-container">
+        <table id="history-table">
+          <thead>
+            <tr>
+              <th>投籃次數</th>
+              <th>時間</th>
+              <th>綜合評分</th>
+              <th>手肘準備</th>
+              <th>膝蓋動力</th>
+              <th>出手延伸</th>
+              <th>平衡分數</th>
+              <th>診斷分析與教練反饋</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+        
+        <div id="history-empty" class="empty-state">
+          <svg viewBox="0 0 24 24">
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm0 8H7v-2h10v2z"/>
+          </svg>
+          <span>目前尚無投籃數據，開始偵測動作後將自動記錄</span>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script>
-    // =============================================
-    // 全域變數
-    // =============================================
-    let detector;
-    let detectorConfig;
-    let poses;
-    let video;
-    let skeleton = true;
+    // =========================================================================
+    // GLOBAL STATE VARIABLES & CONSTANTS
+    // =========================================================================
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    
+    // UI elements
+    const statusText = document.getElementById('status-text');
+    const statusBadge = document.getElementById('status-badge');
+    const hudFps = document.getElementById('hud-fps');
+    const hudHandLabel = document.getElementById('hud-hand-label');
+    const hudStateBanner = document.getElementById('hud-state-banner');
+    const hudStateTitle = document.getElementById('hud-state-title');
+    const hudStateSub = document.getElementById('hud-state-sub');
+    const hudWarningBox = document.getElementById('hud-warning-box');
+    const scoreRingFill = document.getElementById('score-ring-fill');
+    const overallScoreText = document.getElementById('overall-score');
+    
+    // Sub-scores
+    const scoreSetpointText = document.getElementById('score-setpoint');
+    const scoreKneeText = document.getElementById('score-knee');
+    const scoreExtensionText = document.getElementById('score-extension');
+    const scoreBalanceText = document.getElementById('score-balance');
+    
+    // Live Meters
+    const valElbowText = document.getElementById('val-elbow');
+    const valKneeText = document.getElementById('val-knee');
+    const valTiltText = document.getElementById('val-tilt');
+    const fillElbow = document.getElementById('fill-elbow');
+    const fillKnee = document.getElementById('fill-knee');
+    const fillTilt = document.getElementById('fill-tilt');
+    
+    // Text elements
+    const feedbackBox = document.getElementById('feedback-box');
+    const feedbackText = document.getElementById('feedback-text');
+    const historyTbody = document.getElementById('history-tbody');
+    const historyEmpty = document.getElementById('history-empty');
 
-    // --- MoveNet 關鍵點索引 ---
-    // MoveNet SINGLEPOSE_THUNDER keypoints:
-    // 0:nose, 1:right_shoulder, 2:left_shoulder, 3:right_elbow, 4:left_elbow,
-    // 5:right_wrist, 6:left_wrist, 7:right_hip, 8:left_hip, 9:right_knee,
-    // 10:left_knee, 11:left_ankle, 12:right_ankle, 13:back_right_shoulder,
-    // 14:back_left_shoulder, 15:back_right_elbow, 16:back_left_elbow
+    let net; // PoseNet model
+    let isModelLoading = true;
+    let currentStream = null;
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let fps = 0;
+    let isMirrored = true; // True for webcam, false for pre-recorded videos
+    let lastPose = null;
+    let animationId = null;
 
-    // 骨骼連線
-    const edges = {};
-    const initEdges = () => {
-      Object.assign(edges, {
-        '2,4': 's', // left shoulder-left elbow
-        '4,6': 's', // left elbow-left wrist
-        '1,3': 's', // right shoulder-right elbow
-        '3,5': 's', // right elbow-right wrist
-        '6,8': 's', // left wrist-left hip
-        '5,7': 's', // right wrist-right hip
-        '7,9': 's', // left hip-left knee
-        '9,11': 's',// left knee-left ankle
-        '8,10': 's',// right hip-right ankle
-        '10,12':'s', // right knee-right ankle
-        '1,2': 'm', // shoulders
-        '2,7': 'm', // left shoulder-left hip
-        '3,7':'m', // right shoulder-left hip
-        '1,8':'m', // right shoulder-right hip
-        '2,8':'m', // left shoulder-right hip
-        '1,7':'m', // right shoulder-left hip
-      });
+    // Configuration
+    let shootingHand = 'right'; // 'right' or 'left'
+    
+    // Keypoint Indices Mapping (COCO Dataset)
+    const KP = {
+      nose: 0,
+      leftEye: 1, rightEye: 2,
+      leftEar: 3, rightEar: 4,
+      leftShoulder: 5, rightShoulder: 6,
+      leftElbow: 7, rightElbow: 8,
+      leftWrist: 9, rightWrist: 10,
+      leftHip: 11, rightHip: 12,
+      leftKnee: 13, rightKnee: 14,
+      leftAnkle: 15, rightAnkle: 16
     };
-    initEdges();
 
-    // --- 初始化 ---
-    async function init() {
-      detectorConfig = { modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER };
-      detector = await poseDetection.createDetector(
-        poseDetection.SupportedModels.MoveNet,
-        detectorConfig
-      );
-      await getPoses();
-      console.log('MoveNet initialized');
-    }
+    // Edge Skeleton layout
+    const skeletonConnections = [
+      [KP.leftShoulder, KP.rightShoulder],
+      [KP.leftShoulder, KP.leftElbow], [KP.leftElbow, KP.leftWrist],
+      [KP.rightShoulder, KP.rightElbow], [KP.rightElbow, KP.rightWrist],
+      [KP.leftShoulder, KP.leftHip], [KP.rightShoulder, KP.rightHip],
+      [KP.leftHip, KP.rightHip],
+      [KP.leftHip, KP.leftKnee], [KP.leftKnee, KP.leftAnkle],
+      [KP.rightHip, KP.rightKnee], [KP.rightKnee, KP.rightAnkle]
+    ];
 
-    function videoReady() {
-      console.log('video ready');
-    }
+    // =========================================================================
+    // STATE MACHINE FOR BASKETBALL SHOT DETECTION
+    // =========================================================================
+    const SHOT_STATE = {
+      IDLE: 'IDLE',
+      PREPARE: 'PREPARE', // Bend knees, bend elbow (Set point)
+      RELEASE: 'RELEASE', // Elbow opens rapidly, body extends
+      FOLLOW_THROUGH: 'FOLLOW_THROUGH', // Straight arms, high wrist
+      COOLDOWN: 'COOLDOWN' // Reviewing details, resetting
+    };
 
-    // --- Setup (p5.js) ---
-    async function setup() {
-      createCanvas(640, 480);
-      video = createCapture(VIDEO, videoReady);
-      video.size(640, 480);
-      video.hide();
+    let currentShotState = SHOT_STATE.IDLE;
+    let shotHistory = [];
+    
+    // Temporaries for metrics tracking during single shot sequence
+    let shotData = {
+      minElbowAngle: 180,
+      minKneeAngle: 180,
+      maxElbowAngle: 0,
+      maxWristY: 9999, // lowest point coordinate (max y value)
+      minWristY: 9999, // highest point coordinate (min y value)
+      setPointElbowAngle: 180,
+      setPointKneeAngle: 180,
+      releaseElbowAngle: 0,
+      torsoAngleAtPrep: 0,
+      torsoAngleAtRelease: 0,
+      wristSpeedHistory: [],
+      stateTimer: 0,
+      framesInState: 0
+    };
 
-      await init();
-    }
+    // =========================================================================
+    // INITIALIZATION & LOADING
+    // =========================================================================
+    window.onload = async function() {
+      await loadModel();
+      updateScoreRing(0);
+      startWebcam(); // Autostart with webcam
+    };
 
-    // --- 持續偵測 ---
-    async function getPoses() {
-      if (!video) return;
+    async function loadModel() {
+      isModelLoading = true;
+      statusText.innerHTML = "正在載入 PoseNet 模型...";
+      statusBadge.className = "status-badge loading";
+      
       try {
-      poses = await detector.estimatePoses(video.elt);
-      } catch (e) {
-        // Silently retry
-      }
-      setTimeout(getPoses, 0);
-    }
-
-    // =============================================
-    // p5.js draw loop
-    // =============================================
-    function draw() {
-      background(220);
-      translate(width, 0);
-      scale(-1, 1); // Mirror video
-      image(video, 0, 0, video.width, video.height);
-
-      // Draw skeleton
-      drawKeypoints();
-      if (skeleton) {
-        drawSkeleton();
-      }
-
-      // Draw HUD
-      fill(255);
-      strokeWeight(2);
-      stroke(51);
-      translate(width, 0);
-      scale(-1, 1);
-      textSize(24);
-      textAlign(RIGHT, TOP);
-
-      if (poses && poses.length > 0) {
-        const result = checkShootingForm(poses[0].keypoints);
-        displayHUD(result);
-      } else {
-        text('Loading...', 20, 20);
+        net = await posenet.load({
+          architecture: 'MobileNetV1',
+          outputStride: 16,
+          inputResolution: { width: 320, height: 240 },
+          multiplier: 0.75
+        });
+        isModelLoading = false;
+        statusText.innerHTML = "模型加載完成";
+        statusBadge.className = "status-badge ready";
+      } catch (err) {
+        console.error("PoseNet Load Error: ", err);
+        statusText.innerHTML = "模型加載失敗！";
+        statusBadge.className = "status-badge";
+        statusBadge.style.color = "var(--accent-red)";
       }
     }
 
-    // =============================================
-    // Draw Keypoints & Skeleton
-    // =============================================
-    function drawKeypoints() {
-      if (!poses || poses.length === 0) return;
+    // =========================================================================
+    // CAMERA / VIDEO SOURCE MANAGEMENT
+    // =========================================================================
+    function stopActiveStream() {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+      }
+      video.pause();
+      video.srcObject = null;
+      video.src = "";
+    }
 
-      for (let kp of poses[0].keypoints) {
-        const { x, y, score } = kp;
-        if (score > 0.3) {
-          fill(255, 0, 0);
-          stroke(0);
-          strokeWeight(4);
-          circle(x, y, 12);
+    async function startWebcam() {
+      stopActiveStream();
+      isMirrored = true;
+      
+      document.getElementById('btn-webcam').classList.add('active');
+      document.getElementById('btn-demo').classList.remove('active');
+      
+      if (isModelLoading) {
+        setTimeout(startWebcam, 500);
+        return;
+      }
+
+      statusText.innerHTML = "正在啟動相機...";
+      statusBadge.className = "status-badge loading";
+
+      const constraints = {
+        audio: false,
+        video: {
+          facingMode: 'user',
+          width: 640,
+          height: 480
+        }
+      };
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        currentStream = stream;
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play();
+          statusText.innerHTML = "即時相機偵測中";
+          statusBadge.className = "status-badge ready";
+          detectFrame();
+        };
+      } catch (err) {
+        console.error("Camera Access Error: ", err);
+        statusText.innerHTML = "無法啟動相機";
+        statusBadge.className = "status-badge";
+        statusBadge.style.color = "var(--accent-red)";
+        alert("相機開啟失敗，請確認是否給予相機存取權限。");
+      }
+    }
+
+    function loadDemoVideo() {
+      stopActiveStream();
+      isMirrored = false;
+      
+      document.getElementById('btn-webcam').classList.remove('active');
+      document.getElementById('btn-demo').classList.add('active');
+      
+      if (isModelLoading) {
+        setTimeout(loadDemoVideo, 500);
+        return;
+      }
+
+      statusText.innerHTML = "正在載入 Demo 影片...";
+      statusBadge.className = "status-badge loading";
+
+      // Relative path to user's video file
+      video.src = "螢幕錄製 2026-07-15 221239.mp4";
+      video.load();
+      
+      video.onloadeddata = () => {
+        video.play();
+        statusText.innerHTML = "Demo 影片分析中";
+        statusBadge.className = "status-badge ready";
+        detectFrame();
+      };
+
+      video.onerror = () => {
+        statusText.innerHTML = "Demo 影片載入失敗";
+        statusBadge.className = "status-badge";
+        statusBadge.style.color = "var(--accent-red)";
+        alert("無法讀取 '螢幕錄製 2026-07-15 221239.mp4'。請確認檔案放置於同一目錄中。");
+      };
+    }
+
+    function handleVideoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      stopActiveStream();
+      isMirrored = false;
+      
+      document.getElementById('btn-webcam').classList.remove('active');
+      document.getElementById('btn-demo').classList.remove('active');
+
+      statusText.innerHTML = "正在載入上傳影片...";
+      statusBadge.className = "status-badge loading";
+
+      const fileURL = URL.createObjectURL(file);
+      video.src = fileURL;
+      video.load();
+
+      video.onloadeddata = () => {
+        video.play();
+        statusText.innerHTML = "上傳影片分析中";
+        statusBadge.className = "status-badge ready";
+        detectFrame();
+      };
+    }
+
+    function switchShootingHand(hand) {
+      shootingHand = hand;
+      hudHandLabel.innerText = hand === 'right' ? 'R-HAND' : 'L-HAND';
+      hudHandLabel.style.color = hand === 'right' ? 'var(--accent-cyan)' : 'var(--accent-purple)';
+      
+      // Reset State
+      resetShotState();
+    }
+
+    // =========================================================================
+    // DETECT ENGINE & DRAWING SKELETON
+    // =========================================================================
+    async function detectFrame() {
+      if (!video || video.paused || video.ended) {
+        animationId = requestAnimationFrame(detectFrame);
+        return;
+      }
+
+      // Calculate FPS
+      frameCount++;
+      const time = performance.now();
+      if (time >= lastTime + 1000) {
+        fps = Math.round((frameCount * 1000) / (time - lastTime));
+        hudFps.innerHTML = fps;
+        frameCount = 0;
+        lastTime = time;
+      }
+
+      if (net) {
+        try {
+          const pose = await net.estimateSinglePose(video, {
+            flipHorizontal: false // Handling mirror manually during draw
+          });
+          
+          lastPose = pose;
+          processAnglesAndState(pose);
+          drawCanvas(pose);
+        } catch (err) {
+          console.error("Frame detection error: ", err);
         }
       }
+
+      animationId = requestAnimationFrame(detectFrame);
     }
 
-    function drawSkeleton() {
-      const confidence_threshold = 0.5;
+    function drawCanvas(pose) {
+      context.save();
+      
+      // Clear canvas
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw Video mirrored or normal
+      if (isMirrored) {
+        context.translate(canvas.width, 0);
+        context.scale(-1, 1);
+      }
+      
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // If we don't have pose keypoints, restore and exit
+      if (!pose || !pose.keypoints) {
+        context.restore();
+        return;
+      }
 
-      if (!poses || poses.length === 0) return;
+      const scoreThreshold = parseFloat(document.getElementById('score-threshold').value);
+      
+      // Draw Skeleton Lines
+      skeletonConnections.forEach(([i1, i2]) => {
+        const kp1 = pose.keypoints[i1];
+        const kp2 = pose.keypoints[i2];
+        
+        if (kp1.score >= scoreThreshold && kp2.score >= scoreThreshold) {
+          context.beginPath();
+          context.moveTo(kp1.position.x, kp1.position.y);
+          context.lineTo(kp2.position.x, kp2.position.y);
+          
+          // Style skeleton lines based on pose state
+          if (currentShotState === SHOT_STATE.PREPARE) {
+            context.strokeStyle = "rgba(255, 153, 0, 0.7)"; // Orange during prep
+            context.lineWidth = 4;
+          } else if (currentShotState === SHOT_STATE.RELEASE || currentShotState === SHOT_STATE.FOLLOW_THROUGH) {
+            context.strokeStyle = "rgba(0, 255, 102, 0.8)"; // Green during release
+            context.lineWidth = 5;
+          } else {
+            context.strokeStyle = "rgba(0, 240, 255, 0.4)"; // Normal cyan skeleton
+            context.lineWidth = 3;
+          }
+          context.stroke();
+        }
+      });
 
-      for (const [key, value] of Object.entries(edges)) {
-        const p = key.split(',');
-        const p1 = parseInt(p[0]);
-        const p2 = parseInt(p[1]);
-
-        const kp1 = poses[0].keypoints[p1];
-        const kp2 = poses[0].keypoints[p2];
-
-        if (kp1 && kp2) {
-          const c1 = kp1.score || 0;
-          const c2 = kp2.score || 0;
-
-          if (c1 > confidence_threshold && c2 > confidence_threshold) {
-            strokeWeight(3);
-            // Green for normal, red for flagged
-            if (value === 'm') {
-              stroke('rgb(0, 255, 0)');
-            } else if (value === 's') {
-              stroke('rgb(0, 200, 255)');
-            } else {
-              stroke('rgb(200, 100, 0)');
-            }
-            line(kp1.x, kp1.y, kp2.x, kp2.y);
+      // Highlight Joint Keypoints
+      pose.keypoints.forEach((kp) => {
+        if (kp.score >= scoreThreshold) {
+          context.beginPath();
+          context.arc(kp.position.x, kp.position.y, 6, 0, 2 * Math.PI);
+          
+          // Color code keypoints based on significance and confidence
+          if (kp.part.includes('Elbow') || kp.part.includes('Wrist') || kp.part.includes('Knee')) {
+            context.fillStyle = "var(--accent-cyan)";
+            context.arc(kp.position.x, kp.position.y, 2, 0, 2 * Math.PI); // inner dot
+            context.strokeStyle = "#fff";
+            context.lineWidth = 2;
+            context.stroke();
+          } else {
+            context.fillStyle = "rgba(255, 255, 255, 0.7)";
+          }
+          context.fill();
+          
+          // Draw little label for custom tracking joint
+          const isShootingSideElbow = (shootingHand === 'right' && kp.part === 'rightElbow') || (shootingHand === 'left' && kp.part === 'leftElbow');
+          if (isShootingSideElbow) {
+            // Draw a radar circle around shooting elbow
+            context.beginPath();
+            context.arc(kp.position.x, kp.position.y, 14, 0, 2 * Math.PI);
+            context.strokeStyle = "var(--accent-cyan)";
+            context.lineWidth = 1.5;
+            context.setLineDash([3, 3]);
+            context.stroke();
+            context.setLineDash([]); // clear dash
           }
         }
-      }
+      });
+
+      context.restore();
     }
 
-    // =============================================
-    // Shooting Form Analysis (adapted for MoveNet)
-    // =============================================
-    function checkShootingForm(keypoints) {
-      const issues = [];
-      let score = 100;
-
-      if (!keypoints || keypoints.length < 10) {
-        return { score: 0, feedback: ['⚠️ 尚未偵測到足夠的骨骼點'] };
-      }
-
-      // Helper: safe get
-      const kp = (idx) => keypoints[idx] || null;
-
-      // --- Knee angle: left knee, left hip, left ankle ---
-      const leftHip = kp(8);
-      const leftKnee = kp(9);
-      const leftAnkle = kp(11);
-
-      if (leftHip && leftKnee && leftAnkle) {
-      const kneeAngle = calcAngle(leftHip, leftKnee, leftAnkle);
-        if (kneeAngle > 160) {
-          issues.push('⚠️ 膝蓋伸展過度，準備時應略微屈膝');
-          score -= 15;
-        } else if (kneeAngle >= 130 && kneeAngle < 160) {
-          issues.push('✅ 膝蓋適當屈膝，準備良好');
-          score += 10;
-        } else if (kneeAngle < 130) {
-          issues.push('⚠️ 屈膝角度過大，建議稍微伸直膝蓋');
-          score -= 10;
-        }
-      }
-
-      // --- Elbow angle: left shoulder, left elbow, left wrist ---
-      const leftShoulder = kp(2);
-      const leftElbow = kp(4);
-      const leftWrist = kp(6);
-
-      if (leftShoulder && leftElbow && leftWrist) {
-        const elbowAngle = calcAngle(leftShoulder, leftElbow, leftWrist);
-        if (elbowAngle < 60) {
-          issues.push('⚠️ 手肘角度過小，應調整至約90度');
-          score -= 20;
-        } else if (elbowAngle > 150) {
-          issues.push('⚠️ 手肘過度伸展');
-          score -= 10;
-        } else if (elbowAngle >= 80 && elbowAngle <= 100) {
-          issues.push('✅ 手肘角度良好');
-          score += 10;
-        }
-      }
-
-      // --- Shoulder angle ---
-      const rightShoulder = kp(1);
-      const leftShoulder2 = kp(2);
-      const leftHip2 = kp(8);
-
-      if (rightShoulder && leftShoulder2 && leftHip2) {
-        const shoulderAngle = calcAngle(rightShoulder, leftShoulder2, leftHip2);
-        if (shoulderAngle > 100) {
-          issues.push('⚠️ 肩膀角度過大，注意身體前傾');
-          score -= 15;
-        }
-      }
-
-      // --- Hip angle ---
-      const rightHip = kp(7);
-      const leftHip3 = kp(8);
-      const leftKnee2 = kp(9);
-
-      if (leftHip3 && rightHip && leftKnee2) {
-        const hipAngle = calcAngle(leftHip3, rightHip, leftKnee2);
-        if (hipAngle > 150) {
-          issues.push('⚠️ 髖部過度伸展，注意身體前傾');
-          score -= 10;
-        }
-      }
-
-      // --- Back check ---
-      const leftBackShoulder = kp(14);
-      const leftBackElbow = kp(16);
-      if (leftBackShoulder && leftBackElbow) {
-        // Check if back is visible and straight
-        const backAngle = calcAngle(
-          kp(8), // left hip
-          kp(14), // back left shoulder
-          kp(16) // back left elbow
-        );
-        if (backAngle > 120 && backAngle < 160) {
-          issues.push('✅ 背部姿勢良好');
-        }
-      }
-
-      if (issues.length === 0) {
-        score = Math.floor(Math.random() * (95 - 80 + 1)) + 80;
-        issues.push('動作流程看起來很流暢，這是優秀的投籃！');
-      }
-
-      return { score: Math.max(0, score), feedback: issues };
-    }
-
-    // --- Angle calculation ---
-    function calcAngle(p1, p2, p3) {
+    // =========================================================================
+    // MATHEMATICAL ANGLE CALCULATIONS
+    // =========================================================================
+    function getAngle(p1, p2, p3) {
       const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
       const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+      
       const dotProduct = v1.x * v2.x + v1.y * v2.y;
       const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
       const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+      
       if (mag1 === 0 || mag2 === 0) return 0;
-      const angle = Math.acos(Math.min(dotProduct / (mag1 * mag2), 1));
-      return Math.round(angle * 180 / Math.PI);
+      
+      const cosAngle = dotProduct / (mag1 * mag2);
+      // Bound checking for floating point imprecision
+      const boundedCos = Math.min(1, Math.max(-1, cosAngle));
+      const angleRad = Math.acos(boundedCos);
+      
+      return Math.round(angleRad * 180 / Math.PI);
     }
 
-    // --- HUD Display ---
-    function displayHUD(result) {
-      const hudTop = document.getElementById('hud-top');
-      let html = '';
-      html += `<div style="font-size:24px; font-weight:bold; color:#ff0;">Score: ${result.score}/100</div>`;
-      result.feedback.forEach(f => {
-      html += `<div style="color:#ff0;">${f}</div>`;
+    // Calculates the inclination of the torso relative to vertical plane
+    function getTorsoAngle(shoulder, hip) {
+      const dy = hip.y - shoulder.y;
+      const dx = hip.x - shoulder.x;
+      const angleRad = Math.atan2(Math.abs(dx), Math.abs(dy));
+      return Math.round(angleRad * 180 / Math.PI);
+    }
+
+    // =========================================================================
+    // REAL-TIME STATS PROCESSING & STATE MACHINE
+    // =========================================================================
+    function processAnglesAndState(pose) {
+      const kps = pose.keypoints;
+      const confThreshold = parseFloat(document.getElementById('score-threshold').value);
+
+      // Select active side keypoints based on user selection
+      let shIndex = shootingHand === 'right' ? KP.rightShoulder : KP.leftShoulder;
+      let elIndex = shootingHand === 'right' ? KP.rightElbow : KP.leftElbow;
+      let wrIndex = shootingHand === 'right' ? KP.rightWrist : KP.leftWrist;
+      let hipIndex = shootingHand === 'right' ? KP.rightHip : KP.leftHip;
+      let kneeIndex = shootingHand === 'right' ? KP.rightKnee : KP.leftKnee;
+      let ankIndex = shootingHand === 'right' ? KP.rightAnkle : KP.leftAnkle;
+
+      const sh = kps[shIndex];
+      const el = kps[elIndex];
+      const wr = kps[wrIndex];
+      const hip = kps[hipIndex];
+      const knee = kps[kneeIndex];
+      const ank = kps[ankIndex];
+
+      // Verify that we have sufficient visibility of body parts
+      if (sh.score < confThreshold || el.score < confThreshold || wr.score < confThreshold ||
+          hip.score < confThreshold || knee.score < confThreshold || ank.score < confThreshold) {
+        hudWarningBox.classList.add('visible');
+        return;
+      } else {
+        hudWarningBox.classList.remove('visible');
+      }
+
+      // 1. Calculate Real-Time Angles
+      const elbowAngle = getAngle(sh.position, el.position, wr.position);
+      const kneeAngle = getAngle(hip.position, knee.position, ank.position);
+      const torsoAngle = getTorsoAngle(sh.position, hip.position);
+
+      // Update UI Meters
+      updateLiveMeters(elbowAngle, kneeAngle, torsoAngle);
+
+      // 2. State Machine Logic
+      const wristY = wr.position.y;
+      const shoulderY = sh.position.y;
+      const noseY = kps[KP.nose].position.y;
+      const hipY = hip.position.y;
+
+      // Track relative hand speed (vertical change per frame)
+      let wristSpeed = 0;
+      if (shotData.lastWristY !== undefined) {
+        wristSpeed = shotData.lastWristY - wristY; // Positive = going UP
+      }
+      shotData.lastWristY = wristY;
+      
+      shotData.wristSpeedHistory.push(wristSpeed);
+      if (shotData.wristSpeedHistory.length > 5) {
+        shotData.wristSpeedHistory.shift();
+      }
+      const avgWristSpeed = shotData.wristSpeedHistory.reduce((a,b) => a+b, 0) / shotData.wristSpeedHistory.length;
+
+      // Execute state behaviors
+      shotData.framesInState++;
+      
+      switch (currentShotState) {
+        case SHOT_STATE.IDLE:
+          // In idle, we check if user starts the shot preparation.
+          // Shot Prep begins when:
+          // - Elbow bends (under 120 degrees)
+          // - Knee bends (under 150 degrees)
+          // - Wrists are above hip level (with 50px tolerance)
+          if (elbowAngle < 120 && kneeAngle < 150 && wristY < hipY + 50) {
+            transitionToState(SHOT_STATE.PREPARE);
+            shotData.minElbowAngle = elbowAngle;
+            shotData.minKneeAngle = kneeAngle;
+            shotData.torsoAngleAtPrep = torsoAngle;
+            shotData.maxWristY = wristY;
+            shotData.minWristY = wristY;
+          }
+          break;
+
+        case SHOT_STATE.PREPARE:
+          // Keep recording minimums during setpoint setup
+          if (elbowAngle < shotData.minElbowAngle) shotData.minElbowAngle = elbowAngle;
+          if (kneeAngle < shotData.minKneeAngle) shotData.minKneeAngle = kneeAngle;
+          if (wristY > shotData.maxWristY) shotData.maxWristY = wristY; // lowest hand height
+          if (wristY < shotData.minWristY) shotData.minWristY = wristY; // tracking heights
+
+          // Move to release state when:
+          // - Hand goes above shoulder level (with 50px tolerance)
+          // - Vertical wrist speed is positive (going up: > 3 pixels per frame)
+          // - Elbow starts extending (angle opens up by at least 5 degrees)
+          if (wristY < shoulderY + 50 && avgWristSpeed > 3 && elbowAngle > shotData.minElbowAngle + 5) {
+            shotData.setPointElbowAngle = elbowAngle;
+            shotData.setPointKneeAngle = kneeAngle;
+            transitionToState(SHOT_STATE.RELEASE);
+          }
+
+          // Timeout fallback - if stuck in prep for more than 4 seconds, reset to IDLE
+          if (shotData.framesInState > 120) {
+            resetShotState();
+          }
+          break;
+
+        case SHOT_STATE.RELEASE:
+          // Capture maximum arm extension and wrist height
+          if (elbowAngle > shotData.maxElbowAngle) shotData.maxElbowAngle = elbowAngle;
+          if (wristY < shotData.minWristY) shotData.minWristY = wristY; // top release point
+
+          // Transition to follow-through when:
+          // - Hand reaches near peak (vertical speed slows down: < 4 pixels per frame)
+          // - Elbow is mostly straight (> 135 degrees)
+          if (wristY < shoulderY && avgWristSpeed < 4 && elbowAngle > 135) {
+            shotData.releaseElbowAngle = elbowAngle;
+            shotData.torsoAngleAtRelease = torsoAngle;
+            transitionToState(SHOT_STATE.FOLLOW_THROUGH);
+          }
+
+          // Timeout fallback
+          if (shotData.framesInState > 90) {
+            resetShotState();
+          }
+          break;
+
+        case SHOT_STATE.FOLLOW_THROUGH:
+          // Keep recording peak extension
+          if (elbowAngle > shotData.maxElbowAngle) shotData.maxElbowAngle = elbowAngle;
+          
+          // Verify if they hold the pose for at least 15 frames (~500ms)
+          // Then proceed to evaluate
+          if (shotData.framesInState >= 15) {
+            evaluateShot();
+            transitionToState(SHOT_STATE.COOLDOWN);
+          }
+          break;
+
+        case SHOT_STATE.COOLDOWN:
+          // Cooldown for 2 seconds to let the screen glow/report display
+          if (shotData.framesInState > 60) {
+            resetShotState();
+          }
+          break;
+      }
+    }
+
+    function transitionToState(nextState) {
+      currentShotState = nextState;
+      shotData.framesInState = 0;
+      
+      // Update HUD Banner
+      hudStateBanner.className = "hud-state-banner visible";
+      
+      switch (nextState) {
+        case SHOT_STATE.IDLE:
+          hudStateBanner.className = "hud-state-banner"; // hide
+          break;
+        case SHOT_STATE.PREPARE:
+          hudStateTitle.innerText = "PREPARE";
+          hudStateSub.innerText = "屈膝舉球蓄力中";
+          hudStateBanner.style.border = "1px dashed var(--accent-orange)";
+          hudStateBanner.style.boxShadow = "0 0 20px rgba(255, 153, 0, 0.25)";
+          hudStateTitle.style.color = "var(--accent-orange)";
+          break;
+        case SHOT_STATE.RELEASE:
+          hudStateTitle.innerText = "RELEASE";
+          hudStateSub.innerText = "快速登地出手";
+          hudStateBanner.style.border = "1px dashed var(--accent-green)";
+          hudStateBanner.style.boxShadow = "0 0 20px rgba(0, 255, 102, 0.25)";
+          hudStateTitle.style.color = "var(--accent-green)";
+          break;
+        case SHOT_STATE.FOLLOW_THROUGH:
+          hudStateTitle.innerText = "HOLD POSE";
+          hudStateSub.innerText = "保持出手跟隨動作";
+          hudStateBanner.style.border = "1px dashed var(--accent-cyan)";
+          hudStateBanner.style.boxShadow = "0 0 20px rgba(0, 240, 255, 0.25)";
+          hudStateTitle.style.color = "var(--accent-cyan)";
+          break;
+        case SHOT_STATE.COOLDOWN:
+          hudStateTitle.innerText = "EVALUATING";
+          hudStateSub.innerText = "教練評分診斷中";
+          hudStateBanner.style.border = "1px dashed var(--accent-purple)";
+          hudStateBanner.style.boxShadow = "0 0 20px rgba(189, 0, 255, 0.25)";
+          hudStateTitle.style.color = "var(--accent-purple)";
+          break;
+      }
+    }
+
+    function resetShotState() {
+      currentShotState = SHOT_STATE.IDLE;
+      shotData = {
+        minElbowAngle: 180,
+        minKneeAngle: 180,
+        maxElbowAngle: 0,
+        maxWristY: 9999,
+        minWristY: 9999,
+        setPointElbowAngle: 180,
+        setPointKneeAngle: 180,
+        releaseElbowAngle: 0,
+        torsoAngleAtPrep: 0,
+        torsoAngleAtRelease: 0,
+        wristSpeedHistory: [],
+        stateTimer: 0,
+        framesInState: 0
+      };
+      transitionToState(SHOT_STATE.IDLE);
+    }
+
+    // =========================================================================
+    // UI UPDATES & SCORE EVALUATION
+    // =========================================================================
+    function updateLiveMeters(elbow, knee, tilt) {
+      valElbowText.innerText = elbow + "°";
+      valKneeText.innerText = knee + "°";
+      valTiltText.innerText = tilt + "°";
+      
+      // Calculate percentages for filling progress tracks
+      // Elbow ranges from 0 to 180
+      fillElbow.style.width = (elbow / 180 * 100) + "%";
+      // Knee ranges from 0 to 180
+      fillKnee.style.width = (knee / 180 * 100) + "%";
+      // Tilt ranges from 0 to 90
+      fillTilt.style.width = (tilt / 90 * 100) + "%";
+    }
+
+    function updateScoreRing(score) {
+      overallScoreText.innerText = score.toFixed(0);
+      
+      // SVG circle perimeter is 2 * PI * r = 2 * 3.14159 * 70 = 440
+      const offset = 440 - (score / 100) * 440;
+      scoreRingFill.style.strokeDashoffset = offset;
+    }
+
+    function evaluateShot() {
+      // 1. Evaluate Set Point (Setpoint elbow angle: ideal is ~95 degrees)
+      const prepElbow = shotData.minElbowAngle; 
+      let setpointScore = 0;
+      if (prepElbow >= 80 && prepElbow <= 105) {
+        setpointScore = 100 - Math.abs(prepElbow - 92) * 1.5;
+      } else {
+        setpointScore = 100 - Math.abs(prepElbow - 92) * 2.2;
+      }
+      setpointScore = Math.max(0, Math.min(100, Math.round(setpointScore)));
+
+      // 2. Evaluate Knee Drive (Flexion depth + Extension)
+      // We check if knee bent significantly (flexion) and then fully straightened during release
+      const minKnee = shotData.minKneeAngle;
+      const maxExtensionKnee = lastPose ? getAngle(
+        lastPose.keypoints[shootingHand === 'right' ? KP.rightHip : KP.leftHip].position,
+        lastPose.keypoints[shootingHand === 'right' ? KP.rightKnee : KP.leftKnee].position,
+        lastPose.keypoints[shootingHand === 'right' ? KP.rightAnkle : KP.leftAnkle].position
+      ) : 180;
+
+      let kneeFlexScore = 0;
+      if (minKnee < 140) {
+        kneeFlexScore = 100 - Math.abs(minKnee - 125) * 1.2;
+      } else {
+        kneeFlexScore = 50 - (minKnee - 140) * 2; // Knee was not bent enough
+      }
+      
+      let kneeExtScore = (maxExtensionKnee / 175) * 100;
+      let kneeScore = (kneeFlexScore * 0.4) + (kneeExtScore * 0.6);
+      kneeScore = Math.max(0, Math.min(100, Math.round(kneeScore)));
+
+      // 3. Evaluate Extension at Release (ideal elbow extension > 165 degrees)
+      const maxElbow = shotData.maxElbowAngle;
+      let extensionScore = 0;
+      if (maxElbow >= 165) {
+        extensionScore = 100 - (180 - maxElbow) * 0.5;
+      } else {
+        extensionScore = 100 - (165 - maxElbow) * 3; // Severe lack of follow through
+      }
+      extensionScore = Math.max(0, Math.min(100, Math.round(extensionScore)));
+
+      // 4. Evaluate Balance / Torso lean (spine stability between prep & release)
+      const tiltDiff = Math.abs(shotData.torsoAngleAtPrep - shotData.torsoAngleAtRelease);
+      let balanceScore = 100 - (tiltDiff * 4.5); // should not lean or sway excessively
+      balanceScore = Math.max(0, Math.min(100, Math.round(balanceScore)));
+
+      // Calculate Overall score
+      const overallScore = Math.round(
+        (setpointScore * 0.35) + 
+        (kneeScore * 0.20) + 
+        (extensionScore * 0.30) + 
+        (balanceScore * 0.15)
+      );
+
+      // Generate coaching feedback strings
+      let feedback = "";
+      let feedbackClass = "";
+      let coachSpeakText = "";
+
+      if (overallScore >= 88) {
+        feedback = "🏀 完美的投籃動作！出手點極佳，且出手後跟隨動作與膝蓋登地釋放力量配合得無懈可擊，請保持此肌肉記憶。";
+        feedbackClass = "excellent";
+        coachSpeakText = `太棒了，得${overallScore.toFixed(0)}分！動作非常標準。`;
+      } else if (overallScore >= 75) {
+        feedback = "👍 良好投籃！";
+        feedbackClass = "";
+        
+        let tips = [];
+        if (setpointScore < 80) {
+          tips.push(prepElbow < 85 ? "舉球投籃準備時，手肘角度過小（夾角太深），建議撐開至約90度" : "準備投籃時手肘過度外張，應注意手肘內收對準籃框");
+        }
+        if (kneeScore < 75) {
+          tips.push("屈膝不夠或出手時膝蓋未完全蹬直，將缺少力量來源");
+        }
+        if (extensionScore < 80) {
+          tips.push("出手瞬間手肘伸展不夠完全，請注意出手後的「壓腕跟隨 (Follow Through)」");
+        }
+        if (balanceScore < 80) {
+          tips.push("身體起跳前後軀幹晃動較大，注意保持脊椎挺直與核心平衡");
+        }
+        
+        feedback += tips.join("；") + "。";
+        coachSpeakText = `不錯，得${overallScore.toFixed(0)}分。${tips[0] || '注意出手後手肘打直。'}`;
+      } else {
+        feedback = "⚠️ 動作需要調整：";
+        feedbackClass = "warning";
+        
+        let fatalTips = [];
+        if (setpointScore < 70) {
+          fatalTips.push(`手肘準備夾角 (${prepElbow}°) 偏差過大，請維持接近90度的直角架勢`);
+        }
+        if (kneeScore < 65) {
+          fatalTips.push("缺少膝蓋下蹲蓄力，手部容易過度用力導致軌跡跑偏");
+        }
+        if (extensionScore < 70) {
+          fatalTips.push(`出手沒有完全推直手臂 (最高角度僅 ${maxElbow}°)，請在最高點將手臂推直`);
+        }
+        
+        if (fatalTips.length === 0) {
+          fatalTips.push("請注意投籃連貫性，起跳下蹲與出手應一氣呵成，不要有明顯停頓");
+        }
+
+        feedback += fatalTips.join("；") + "。";
+        coachSpeakText = `得${overallScore.toFixed(0)}分。${fatalTips[0]}`;
+      }
+
+      // Update UI Scores
+      updateScoreRing(overallScore);
+      scoreSetpointText.innerText = setpointScore;
+      scoreKneeText.innerText = kneeScore;
+      scoreExtensionText.innerText = extensionScore;
+      scoreBalanceText.innerText = balanceScore;
+      
+      // Update Feedback Box
+      feedbackBox.className = "feedback-box " + feedbackClass;
+      feedbackText.innerText = feedback;
+
+      // Add to History
+      addShotToHistory(overallScore, setpointScore, kneeScore, extensionScore, balanceScore, feedback);
+
+      // Trigger verbal coach voice feedback
+      const isVoiceEnabled = document.getElementById('voice-coach-toggle').checked;
+      if (isVoiceEnabled) {
+        speakCoaching(coachSpeakText);
+      }
+    }
+
+    function addShotToHistory(overall, setpoint, knee, extension, balance, feedback) {
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const shotIndex = shotHistory.length + 1;
+      
+      const newShot = {
+        index: shotIndex,
+        time: timeStr,
+        overall: overall,
+        setpoint: setpoint,
+        knee: knee,
+        extension: extension,
+        balance: balance,
+        feedback: feedback
+      };
+
+      shotHistory.unshift(newShot); // Add to beginning of array
+
+      // Render table rows
+      renderHistoryTable();
+    }
+
+    function renderHistoryTable() {
+      historyEmpty.style.display = shotHistory.length === 0 ? "flex" : "none";
+      historyTbody.innerHTML = "";
+
+      shotHistory.forEach((shot) => {
+        const tr = document.createElement('tr');
+        
+        let scoreClass = "high";
+        if (shot.overall < 75) scoreClass = "medium";
+        if (shot.overall < 60) scoreClass = "low";
+
+        tr.innerHTML = `
+          <td style="font-family: 'Orbitron', sans-serif; font-weight: 600;">#${shot.index}</td>
+          <td>${shot.time}</td>
+          <td><span class="badge-score ${scoreClass}">${shot.overall}分</span></td>
+          <td>${shot.setpoint}分</td>
+          <td>${shot.knee}分</td>
+          <td>${shot.extension}分</td>
+          <td>${shot.balance}分</td>
+          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${shot.feedback}">${shot.feedback}</td>
+          <td>
+            <button class="btn-icon" onclick="deleteHistoryItem(${shot.index})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+            </button>
+          </td>
+        `;
+        historyTbody.appendChild(tr);
       });
-      hudTop.innerHTML = html;
+    }
+
+    function deleteHistoryItem(index) {
+      shotHistory = shotHistory.filter(item => item.index !== index);
+      // Re-index remaining
+      shotHistory.forEach((item, idx) => {
+        item.index = shotHistory.length - idx;
+      });
+      renderHistoryTable();
+    }
+
+    function exportHistoryToCSV() {
+      if (shotHistory.length === 0) {
+        alert("尚無歷史投籃紀錄可供匯出！");
+        return;
+      }
+
+      let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // UTF-8 BOM
+      csvContent += "Shot Number,Time,Overall Score,Set Point Elbow,Knee Drive,Extension,Balance Score,Feedback\n";
+      
+      shotHistory.forEach((shot) => {
+        // Strip out emojis and commas from feedback
+        const cleanedFeedback = shot.feedback.replace(/,/g, "，").replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, "");
+        csvContent += `${shot.index},${shot.time},${shot.overall},${shot.setpoint},${shot.knee},${shot.extension},${shot.balance},"${cleanedFeedback}"\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `AeroShot_Analysis_Report_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // =========================================================================
+    // VOICE SPEECH SYNTHESIS ENGINE
+    // =========================================================================
+    function speakCoaching(text) {
+      if ('speechSynthesis' in window) {
+        // Cancel any pending speech first
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-TW'; // Mandarin Chinese
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        
+        window.speechSynthesis.speak(utterance);
+      }
     }
   </script>
 </body>
-
 </html>
