@@ -120,8 +120,10 @@
         }
 
         #video {
-            display: none;
-        }
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                }
 
         .vr-split {
             position: absolute;
@@ -297,10 +299,19 @@
         }
 
         .warning-box b {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 15px;
-        }
+                    display: block;
+                    margin-bottom: 5px;
+                    font-size: 15px;
+                }
+
+                .video-wrapper canvas {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                }
     </style>
 </head>
 
@@ -520,14 +531,15 @@
                     video.srcObject.getTracks().forEach(track => track.stop());
                 }
 
-                log(`Starting stream [${selectedValue}]...`);
+                log(`Starting stream [${selectedValue}] with forced 640x480 (YUY2)...`);
                 const constraints = {
                     video: {
                         deviceId: selectedValue === 'user' || selectedValue === 'environment' ? undefined : { exact: selectedValue },
                         facingMode: selectedValue === 'user' || selectedValue === 'environment' ? { ideal: selectedValue } : undefined,
-                        width: { ideal: 640 },
-                        height: { ideal: 480 },
-                        frameRate: { ideal: 30 }
+                        width: { exact: 640 },
+                        height: { exact: 480 },
+                        frameRate: { ideal: 30 },
+                        resizeMode: "none"
                     }
                 };
 
@@ -538,6 +550,7 @@
                     video.play();
                     const settings = stream.getVideoTracks()[0].getSettings();
                     log(`✅ Stream: ${settings.width}x${settings.height} @ ${Math.round(settings.frameRate || 0)}fps`);
+                    log(`- resizeMode: ${settings.resizeMode || "default"}`);
 
                     if(!isDetecting) {
                         isDetecting = true;
@@ -549,13 +562,15 @@
                 log("❌ Camera Error: " + err.name);
                 log("Detail: " + err.message);
                 if (err.name === 'OverconstrainedError' || err.name === 'NotReadableError') {
-                    log("Retrying with flexible constraints...");
+                    log("Retrying with flexible constraints (ideal 640x480)...");
                     try {
                         const fallbackStream = await navigator.mediaDevices.getUserMedia({
                             video: {
                                 deviceId: selectedValue === 'user' || selectedValue === 'environment' ? undefined : { ideal: selectedValue },
+                                facingMode: selectedValue === 'user' || selectedValue === 'environment' ? { ideal: selectedValue } : undefined,
                                 width: { ideal: 640 },
-                                height: { ideal: 480 }
+                                height: { ideal: 480 },
+                                frameRate: { ideal: 30 }
                             }
                         });
                         video.srcObject = fallbackStream;
