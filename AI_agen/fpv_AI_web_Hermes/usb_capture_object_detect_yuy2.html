@@ -5,8 +5,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>USB Capture AI Detection | Harry's VR</title>
+    <!-- Online scripts: Using CDN versions -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <!-- Local font fallback if internet is unavailable -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -120,10 +122,8 @@
         }
 
         #video {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: contain;
-                }
+            display: none;
+        }
 
         .vr-split {
             position: absolute;
@@ -299,19 +299,10 @@
         }
 
         .warning-box b {
-                    display: block;
-                    margin-bottom: 5px;
-                    font-size: 15px;
-                }
-
-                .video-wrapper canvas {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    pointer-events: none;
-                }
+            display: block;
+            margin-bottom: 5px;
+            font-size: 15px;
+        }
     </style>
 </head>
 
@@ -475,12 +466,12 @@
             log("--- Running Deep Scan ---");
             log("Trying to force-open any external camera...");
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
                         facingMode: { ideal: "environment" },
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
-                    }
+                    } 
                 });
                 video.srcObject = stream;
                 video.play();
@@ -494,7 +485,7 @@
         async function probeUSB() {
             log("--- Raw USB Hardware Probe ---");
             if (!navigator.usb) {
-                log("❌ WebUSB not supported.");
+                log("❌ WebUSB not supported in this browser.");
                 return;
             }
             try {
@@ -531,7 +522,9 @@
                     video.srcObject.getTracks().forEach(track => track.stop());
                 }
 
-                log(`Starting stream [${selectedValue}] with forced 640x480 (YUY2)...`);
+                log(`Starting stream [${selectedValue}] with YUY2 constraints...`);
+                // By requesting the exact native resolution (640x480) supported by the hardware and setting
+                // resizeMode: "none", we prevent browser scaling and force native YUY2 streaming on UVC capture cards.
                 const constraints = {
                     video: {
                         deviceId: selectedValue === 'user' || selectedValue === 'environment' ? undefined : { exact: selectedValue },
@@ -562,15 +555,13 @@
                 log("❌ Camera Error: " + err.name);
                 log("Detail: " + err.message);
                 if (err.name === 'OverconstrainedError' || err.name === 'NotReadableError') {
-                    log("Retrying with flexible constraints (ideal 640x480)...");
+                    log("Retrying with flexible constraints...");
                     try {
                         const fallbackStream = await navigator.mediaDevices.getUserMedia({
                             video: {
                                 deviceId: selectedValue === 'user' || selectedValue === 'environment' ? undefined : { ideal: selectedValue },
-                                facingMode: selectedValue === 'user' || selectedValue === 'environment' ? { ideal: selectedValue } : undefined,
                                 width: { ideal: 640 },
-                                height: { ideal: 480 },
-                                frameRate: { ideal: 30 }
+                                height: { ideal: 480 }
                             }
                         });
                         video.srcObject = fallbackStream;
@@ -593,7 +584,7 @@
             log("Threshold set to " + detectionThreshold.toFixed(2));
         });
 
-        document.getElementById('vr-btn').addEventListener('click', () => {
+        document.getElementById("vr-btn").addEventListener('click', () => {
             if (videoWrapper.requestFullscreen) {
                 videoWrapper.requestFullscreen();
             } else if (videoWrapper.webkitRequestFullscreen) {
@@ -679,7 +670,6 @@
                 drawScene(ctxLeft, canvasLeft);
             }
 
-            // UI Feedback
             const badge = document.getElementById('ai-status');
             if (predictions.length > 0) {
                 badge.style.color = '#fe4066';
@@ -699,16 +689,18 @@
             }
 
             await initTF();
-            log("Loading Model...");
-            model = await cocoSsd.load({ base: 'mobilenet_v2' });
-            log("Model Ready.");
+            log("Loading Online Model...");
+            try {
+                model = await cocoSsd.load();
+                log("Online Model Ready.");
+            } catch (err) {
+                log("Error loading online model: " + err.message);
+            }
 
             await getCameras();
-
             document.body.classList.add('loaded');
         }
 
-        // Initialize when window loads
         window.onload = bootstrap;
     </script>
 </body>
