@@ -5,10 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>USB Capture AI Detection | Harry's VR</title>
-    <!-- Online scripts: Using CDN versions -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
-    <!-- Local font fallback if internet is unavailable -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -466,12 +464,12 @@
             log("--- Running Deep Scan ---");
             log("Trying to force-open any external camera...");
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
                         facingMode: { ideal: "environment" },
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
-                    } 
+                    }
                 });
                 video.srcObject = stream;
                 video.play();
@@ -485,7 +483,7 @@
         async function probeUSB() {
             log("--- Raw USB Hardware Probe ---");
             if (!navigator.usb) {
-                log("❌ WebUSB not supported in this browser.");
+                log("❌ WebUSB not supported.");
                 return;
             }
             try {
@@ -522,17 +520,14 @@
                     video.srcObject.getTracks().forEach(track => track.stop());
                 }
 
-                log(`Starting stream [${selectedValue}] with YUY2 constraints...`);
-                // By requesting the exact native resolution (640x480) supported by the hardware and setting
-                // resizeMode: "none", we prevent browser scaling and force native YUY2 streaming on UVC capture cards.
+                log(`Starting stream [${selectedValue}]...`);
                 const constraints = {
                     video: {
                         deviceId: selectedValue === 'user' || selectedValue === 'environment' ? undefined : { exact: selectedValue },
                         facingMode: selectedValue === 'user' || selectedValue === 'environment' ? { ideal: selectedValue } : undefined,
-                        width: { exact: 640 },
-                        height: { exact: 480 },
-                        frameRate: { ideal: 30 },
-                        resizeMode: "none"
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 30 }
                     }
                 };
 
@@ -543,7 +538,6 @@
                     video.play();
                     const settings = stream.getVideoTracks()[0].getSettings();
                     log(`✅ Stream: ${settings.width}x${settings.height} @ ${Math.round(settings.frameRate || 0)}fps`);
-                    log(`- resizeMode: ${settings.resizeMode || "default"}`);
 
                     if(!isDetecting) {
                         isDetecting = true;
@@ -584,7 +578,7 @@
             log("Threshold set to " + detectionThreshold.toFixed(2));
         });
 
-        document.getElementById("vr-btn").addEventListener('click', () => {
+        document.getElementById('vr-btn').addEventListener('click', () => {
             if (videoWrapper.requestFullscreen) {
                 videoWrapper.requestFullscreen();
             } else if (videoWrapper.webkitRequestFullscreen) {
@@ -670,6 +664,7 @@
                 drawScene(ctxLeft, canvasLeft);
             }
 
+            // UI Feedback
             const badge = document.getElementById('ai-status');
             if (predictions.length > 0) {
                 badge.style.color = '#fe4066';
@@ -689,18 +684,16 @@
             }
 
             await initTF();
-            log("Loading Online Model...");
-            try {
-                model = await cocoSsd.load();
-                log("Online Model Ready.");
-            } catch (err) {
-                log("Error loading online model: " + err.message);
-            }
+            log("Loading Model...");
+            model = await cocoSsd.load({ base: 'mobilenet_v2' });
+            log("Model Ready.");
 
             await getCameras();
+
             document.body.classList.add('loaded');
         }
 
+        // Initialize when window loads
         window.onload = bootstrap;
     </script>
 </body>
