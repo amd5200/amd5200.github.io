@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>智能伏地挺身計數器 (Bilingual AI Push-up Counter)</title>
   <!-- Import Google Font Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,6 +16,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2"></script>
 
   <style>
+    /* Responsive design: fluid container, aspect-ratio maintained, grid adapts to width */
     body {
       margin: 0;
       padding: 0;
@@ -110,21 +112,26 @@
     }
 
     .canvas-holder {
-      width: 640px;
-      height: 480px;
+      position: relative;
+      width: 100%;
+      padding-bottom: 75%; /* 4:3 aspect ratio */
+      height: 0;
+      overflow: hidden;
       background: #020617;
       border-radius: 16px;
-      overflow: hidden;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
       border: 1px solid rgba(255, 255, 255, 0.05);
-      position: relative;
+      touch-action: manipulation; /* Improve touch responsiveness */
     }
 
     /* p5.js Canvas Centering */
     .canvas-holder canvas {
-      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100% !important;
       height: 100% !important;
+      display: block;
     }
 
     .dashboard {
@@ -245,13 +252,13 @@
       <div id="canvas-holder" class="canvas-holder">
         <!-- p5.js Canvas will be embedded here -->
       </div>
-      
+
       <div class="dashboard">
         <div class="metric-card count-card">
           <span id="metric-count-label" class="metric-label">當前次數</span>
           <span id="metric-count-val" class="metric-value">0</span>
         </div>
-        
+
         <div class="metric-card state-card">
           <span id="metric-state-label" class="metric-label">動作狀態</span>
           <span id="metric-state-val" class="state-badge up">UP</span>
@@ -272,7 +279,7 @@
         </div>
       </div>
     </div>
-    
+
     <footer class="app-footer">
       <p id="footer-text">請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。</p>
     </footer>
@@ -327,19 +334,19 @@ const texts = {
 
 function toggleLanguage() {
   currentLang = currentLang === 'zh' ? 'en' : 'zh';
-  
+
   // Update DOM text elements
   document.getElementById('title-text').innerText = texts[currentLang].title;
   document.getElementById('subtitle-text').innerText = texts[currentLang].subtitle;
   document.getElementById('btn-lang-text').innerText = texts[currentLang].btnLang;
-  
+
   document.getElementById('metric-count-label').innerText = texts[currentLang].countLabel;
   document.getElementById('metric-state-label').innerText = texts[currentLang].stateLabel;
   document.getElementById('metric-angles-label').innerText = texts[currentLang].anglesLabel;
-  
+
   document.getElementById('left-angle-label').innerText = texts[currentLang].leftElbow;
   document.getElementById('right-angle-label').innerText = texts[currentLang].rightElbow;
-  
+
   document.getElementById('footer-text').innerText = texts[currentLang].footer;
 }
 
@@ -366,6 +373,15 @@ function setup() {
   });
 }
 
+function windowResized() {
+  // Keep canvas size fixed; CSS will scale it.
+  // If you want to adapt resolution to window size, uncomment below:
+  // const w = min(windowWidth, 640);
+  // const h = w * 480 / 640;
+  // resizeCanvas(w, h);
+}
+
+// p5.js draw loop
 function draw() {
   background(0);
   image(video, 0, 0, width, height);
@@ -443,7 +459,7 @@ function getAngle(a, b, c) {
 function processPose(pose) {
   if (!pose.keypoints) return;
   const nose = pose.keypoints.find(k => k.part === 'nose');
-  
+
   // Find shoulder Y baseline relative to current shoulder positions
   const leftShoulder = pose.keypoints.find(k => k.part === 'leftShoulder');
   const rightShoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
@@ -503,7 +519,7 @@ function processPose(pose) {
     textSize(18);
     textAlign(LEFT, TOP);
     let textY = 100;
-    
+
     angles.forEach(a => {
       let sideLabel = a.side === 'Left' ? texts[currentLang].leftElbow : texts[currentLang].rightElbow;
       text(`${sideLabel}: ${Math.round(a.val)}°`, 20, textY);
@@ -517,13 +533,13 @@ function processPose(pose) {
 
     // Update Dashboard DOM Elements
     document.getElementById('metric-count-val').innerText = count;
-    
+
     let stateBadge = document.getElementById('metric-state-val');
     if (stateBadge) {
       stateBadge.innerText = state.toUpperCase();
       stateBadge.className = 'state-badge ' + state.toLowerCase();
     }
-    
+
     let leftAngleVal = document.getElementById('left-angle-val');
     let rightAngleVal = document.getElementById('right-angle-val');
     if (leftAngleVal) leftAngleVal.innerText = '--';
