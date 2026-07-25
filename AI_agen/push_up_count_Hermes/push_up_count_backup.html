@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>智能伏地挺身計數器 (Bilingual AI Push-up Counter)</title>
+  <!-- Import Google Font Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  
+  <!-- p5.js and TensorFlow JS libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.dom.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.1.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      font-family: 'Outfit', sans-serif;
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 1050px;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .app-card {
+      background: rgba(30, 41, 59, 0.45);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 30px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 20px;
+    }
+
+    .title-group h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 800;
+      background: linear-gradient(90deg, #38bdf8 0%, #a855f7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      margin: 5px 0 0 0;
+      font-size: 14px;
+      color: #94a3b8;
+      letter-spacing: 1px;
+    }
+
+    .lang-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #f1f5f9;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .lang-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+    }
+
+    .lang-btn:active {
+      transform: translateY(0);
+    }
+
+    .main-content {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 25px;
+    }
+
+    @media (min-width: 900px) {
+      .main-content {
+        grid-template-columns: 640px 1fr;
+      }
+    }
+
+    .canvas-holder {
+      width: 640px;
+      height: 480px;
+      background: #020617;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
+    }
+
+    /* p5.js Canvas Centering */
+    .canvas-holder canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .dashboard {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .metric-card {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 80px;
+    }
+
+    .metric-label {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #64748b;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .metric-value {
+      font-size: 42px;
+      font-weight: 800;
+      color: #38bdf8;
+      text-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+    }
+
+    .state-badge {
+      font-size: 24px;
+      font-weight: 800;
+      padding: 6px 16px;
+      border-radius: 8px;
+      text-align: center;
+      align-self: flex-start;
+      transition: all 0.3s ease;
+    }
+
+    .state-badge.up {
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(74, 222, 128, 0.3);
+      text-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
+    }
+
+    .state-badge.down {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      text-shadow: 0 0 10px rgba(248, 113, 113, 0.2);
+    }
+
+    .angles-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+
+    .angle-item {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .angle-name {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 5px;
+    }
+
+    .angle-val {
+      font-size: 20px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+
+    .app-footer {
+      margin-top: 25px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: center;
+    }
+
+    .app-footer p {
+      margin: 0;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="app-card">
+    <header class="app-header">
+      <div class="title-group">
+        <h1 id="title-text">智能伏地挺身計數器</h1>
+        <p id="subtitle-text" class="subtitle">AI 身體關節姿態追蹤器</p>
+      </div>
+      <button id="lang-btn" class="lang-btn" onclick="toggleLanguage()">
+        <span>🌐</span> <span id="btn-lang-text">English</span>
+      </button>
+    </header>
+
+    <div class="main-content">
+      <div id="canvas-holder" class="canvas-holder">
+        <!-- p5.js Canvas will be embedded here -->
+      </div>
+      
+      <div class="dashboard">
+        <div class="metric-card count-card">
+          <span id="metric-count-label" class="metric-label">當前次數</span>
+          <span id="metric-count-val" class="metric-value">0</span>
+        </div>
+        
+        <div class="metric-card state-card">
+          <span id="metric-state-label" class="metric-label">動作狀態</span>
+          <span id="metric-state-val" class="state-badge up">UP</span>
+        </div>
+
+        <div class="metric-card angles-card">
+          <span id="metric-angles-label" class="metric-label">手肘關節角度</span>
+          <div class="angles-row">
+            <div class="angle-item">
+              <span id="left-angle-label" class="angle-name">左手肘</span>
+              <span id="left-angle-val" class="angle-val">--</span>
+            </div>
+            <div class="angle-item">
+              <span id="right-angle-label" class="angle-name">右手肘</span>
+              <span id="right-angle-val" class="angle-val">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <footer class="app-footer">
+      <p id="footer-text">請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。</p>
+    </footer>
+  </div>
+</div>
+
+<script>
+let video;
+let poseNet;
+let pose = null;
+let poseReady = false;
+let detecting = false;
+
+// State for push-up counting
+let state = 'up'; // 'up' or 'down'
+let count = 0;
+const STRAIGHT_ANGLE = 150; // Threshold for elbow extension to count as straight (in degrees)
+
+// Bilingual Translations Dictionary
+let currentLang = 'zh';
+
+const texts = {
+  zh: {
+    title: "智能伏地挺身計數器",
+    subtitle: "AI 身體關節姿態追蹤器",
+    loading: "載入 PoseNet 模型中...",
+    waiting: "等待偵測中...",
+    countLabel: "當前次數",
+    stateLabel: "動作狀態",
+    anglesLabel: "手肘關節角度",
+    leftElbow: "左手肘",
+    rightElbow: "右手肘",
+    notDetected: "未偵測到手肘，請調整攝影機位置",
+    footer: "請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。",
+    btnLang: "English"
+  },
+  en: {
+    title: "AI Push-up Counter",
+    subtitle: "AI Body-Relative Pose Tracker",
+    loading: "Loading PoseNet model...",
+    waiting: "Waiting for detection...",
+    countLabel: "Current Count",
+    stateLabel: "Action State",
+    anglesLabel: "Elbow Joint Angles",
+    leftElbow: "Left Elbow",
+    rightElbow: "Right Elbow",
+    notDetected: "Elbows not detected. Adjust camera position.",
+    footer: "Please face the camera and ensure your head, shoulders, elbows, and wrists are fully in frame.",
+    btnLang: "中文"
+  }
+};
+
+function toggleLanguage() {
+  currentLang = currentLang === 'zh' ? 'en' : 'zh';
+  
+  // Update DOM text elements
+  document.getElementById('title-text').innerText = texts[currentLang].title;
+  document.getElementById('subtitle-text').innerText = texts[currentLang].subtitle;
+  document.getElementById('btn-lang-text').innerText = texts[currentLang].btnLang;
+  
+  document.getElementById('metric-count-label').innerText = texts[currentLang].countLabel;
+  document.getElementById('metric-state-label').innerText = texts[currentLang].stateLabel;
+  document.getElementById('metric-angles-label').innerText = texts[currentLang].anglesLabel;
+  
+  document.getElementById('left-angle-label').innerText = texts[currentLang].leftElbow;
+  document.getElementById('right-angle-label').innerText = texts[currentLang].rightElbow;
+  
+  document.getElementById('footer-text').innerText = texts[currentLang].footer;
+}
+
+function setup() {
+  // Create canvas and parent to the container
+  let canvas = createCanvas(640, 480);
+  canvas.parent('canvas-holder');
+
+  video = createCapture(VIDEO);
+  video.size(width, height);
+  video.hide();
+
+  // Load PoseNet model
+  const modelConfig = {
+    architecture: 'MobileNetV1',
+    outputStride: 16,
+    inputResolution: 512,
+    multiplier: 0.75
+  };
+  posenet.load(modelConfig).then(net => {
+    poseNet = net;
+    poseReady = true;
+    console.log('PoseNet ready');
+  });
+}
+
+function draw() {
+  background(0);
+  image(video, 0, 0, width, height);
+
+  if (poseReady && !detecting) {
+    detecting = true;
+    poseNet.estimateSinglePose(video.elt, {
+      flipHorizontal: false,
+      decodingMethod: 'single-person'
+    }).then(result => {
+      pose = result;
+      detecting = false;
+    }).catch(err => {
+      console.error(err);
+      detecting = false;
+    });
+  }
+
+  if (pose) {
+    drawPose(pose);
+    processPose(pose);
+    drawCount();
+  } else if (!poseReady) {
+    // Show loading text
+    fill(255);
+    textSize(24);
+    textAlign(CENTER, CENTER);
+    text(texts[currentLang].loading, width / 2, height / 2);
+  }
+}
+
+function drawPose(pose) {
+  if (pose.keypoints) {
+    // Draw keypoints
+    for (let i = 0; i < pose.keypoints.length; i++) {
+      let kp = pose.keypoints[i];
+      if (kp.score > 0.2) {
+        fill(0, 255, 0);
+        noStroke();
+        ellipse(kp.position.x, kp.position.y, 8, 8);
+      }
+    }
+    // Draw skeleton
+    const skeleton = [
+      [5, 7], [7, 9], [6, 8], [8, 10], // arms
+      [5, 6], [5, 11], [6, 12], [11, 12], // torso
+      [11, 13], [13, 15], [12, 14], [14, 16] // legs
+    ];
+    stroke(255, 255, 0);
+    strokeWeight(2);
+    for (let i = 0; i < skeleton.length; i++) {
+      let a = pose.keypoints[skeleton[i][0]];
+      let b = pose.keypoints[skeleton[i][1]];
+      if (a.score > 0.2 && b.score > 0.2) {
+        line(a.position.x, a.position.y, b.position.x, b.position.y);
+      }
+    }
+  }
+}
+
+function getAngle(a, b, c) {
+  const baX = a.x - b.x;
+  const baY = a.y - b.y;
+  const bcX = c.x - b.x;
+  const bcY = c.y - b.y;
+  const dotProduct = baX * bcX + baY * bcY;
+  const magBA = Math.sqrt(baX * baX + baY * baY);
+  const magBC = Math.sqrt(bcX * bcX + bcY * bcY);
+  if (magBA === 0 || magBC === 0) return 0;
+  let cosAngle = dotProduct / (magBA * magBC);
+  cosAngle = Math.max(-1, Math.min(1, cosAngle));
+  return Math.acos(cosAngle) * (180 / Math.PI);
+}
+
+function processPose(pose) {
+  if (!pose.keypoints) return;
+  const nose = pose.keypoints.find(k => k.part === 'nose');
+  
+  // Find shoulder Y baseline relative to current shoulder positions
+  const leftShoulder = pose.keypoints.find(k => k.part === 'leftShoulder');
+  const rightShoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
+  let shouldersY = [];
+  if (leftShoulder && leftShoulder.score > 0.5) shouldersY.push(leftShoulder.position.y);
+  if (rightShoulder && rightShoulder.score > 0.5) shouldersY.push(rightShoulder.position.y);
+
+  if (nose && nose.score > 0.5 && shouldersY.length > 0) {
+    const ny = nose.position.y;
+    const shoulderY = shouldersY.reduce((a, b) => a + b, 0) / shouldersY.length;
+
+    // Detect active arm angles
+    let angles = [];
+    const leftElbow = pose.keypoints.find(k => k.part === 'leftElbow');
+    const leftWrist = pose.keypoints.find(k => k.part === 'leftWrist');
+    if (leftShoulder && leftShoulder.score > 0.5 &&
+        leftElbow && leftElbow.score > 0.5 &&
+        leftWrist && leftWrist.score > 0.5) {
+      const angle = getAngle(leftShoulder.position, leftElbow.position, leftWrist.position);
+      angles.push({ side: 'Left', val: angle });
+    }
+
+    const rightElbow = pose.keypoints.find(k => k.part === 'rightElbow');
+    const rightWrist = pose.keypoints.find(k => k.part === 'rightWrist');
+    if (rightShoulder && rightShoulder.score > 0.5 &&
+        rightElbow && rightElbow.score > 0.5 &&
+        rightWrist && rightWrist.score > 0.5) {
+      const angle = getAngle(rightShoulder.position, rightElbow.position, rightWrist.position);
+      angles.push({ side: 'Right', val: angle });
+    }
+
+    // Determine if any detected arm is straight
+    const hasStraightArm = angles.length > 0 && angles.some(a => a.val >= STRAIGHT_ANGLE);
+
+    // Detect state transitions
+    if (ny >= shoulderY && state === 'up') {
+      state = 'down';
+    } else if (ny < shoulderY && hasStraightArm && state === 'down') {
+      state = 'up';
+      count++;
+      speakCount(count);
+    }
+
+    // Visual feedback: Draw shoulder line
+    stroke(255, 255, 0);
+    strokeWeight(2);
+    line(0, shoulderY, width, shoulderY);
+
+    // Visual feedback: Draw nose indicator
+    fill(state === 'down' ? 'red' : 'green');
+    noStroke();
+    ellipse(nose.position.x, ny, 16, 16);
+
+    // Visual feedback: Display elbow angles on canvas
+    fill(255);
+    noStroke();
+    textSize(18);
+    textAlign(LEFT, TOP);
+    let textY = 100;
+    
+    angles.forEach(a => {
+      let sideLabel = a.side === 'Left' ? texts[currentLang].leftElbow : texts[currentLang].rightElbow;
+      text(`${sideLabel}: ${Math.round(a.val)}°`, 20, textY);
+      textY += 25;
+    });
+
+    if (angles.length === 0) {
+      fill(255, 0, 0);
+      text(texts[currentLang].notDetected, 20, textY);
+    }
+
+    // Update Dashboard DOM Elements
+    document.getElementById('metric-count-val').innerText = count;
+    
+    let stateBadge = document.getElementById('metric-state-val');
+    if (stateBadge) {
+      stateBadge.innerText = state.toUpperCase();
+      stateBadge.className = 'state-badge ' + state.toLowerCase();
+    }
+    
+    let leftAngleVal = document.getElementById('left-angle-val');
+    let rightAngleVal = document.getElementById('right-angle-val');
+    if (leftAngleVal) leftAngleVal.innerText = '--';
+    if (rightAngleVal) rightAngleVal.innerText = '--';
+
+    angles.forEach(a => {
+      if (a.side === 'Left' && leftAngleVal) {
+        leftAngleVal.innerText = Math.round(a.val) + '°';
+      }
+      if (a.side === 'Right' && rightAngleVal) {
+        rightAngleVal.innerText = Math.round(a.val) + '°';
+      }
+    });
+  }
+}
+
+// Display count on canvas
+function drawCount() {
+  fill(255);
+  noStroke();
+  textSize(32);
+  textAlign(CENTER, CENTER);
+  text(`${texts[currentLang].countLabel}: ${count}`, width / 2, 50);
+}
+
+function speakCount(num) {
+  if (window.speechSynthesis) {
+    const utter = new SpeechSynthesisUtterance(num.toString());
+    utter.lang = currentLang === 'zh' ? 'zh-TW' : 'en-US';
+    utter.rate = 1.1;
+    window.speechSynthesis.speak(utter);
+  }
+}
+</script>
+</body>
+</html>
