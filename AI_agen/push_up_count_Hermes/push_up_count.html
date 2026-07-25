@@ -4,19 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>智能伏地挺身計數器 (Bilingual AI Push-up Counter)</title>
-  <!-- Import Google Font Outfit -->
+  <meta name="description" content="使用 MediaPipe Holistic AI 身體姿態與手勢辨識的伏地挺身計數器">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-  
-  <!-- p5.js and TensorFlow JS libraries -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.dom.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.1.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2"></script>
+
+  <!-- MediaPipe Holistic -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
 
   <style>
-    /* Responsive design: fluid container, aspect-ratio maintained, grid adapts to width */
+    /* ===================== BASE ===================== */
+    *, *::before, *::after { box-sizing: border-box; }
+
     body {
       margin: 0;
       padding: 0;
@@ -32,27 +33,27 @@
 
     .app-container {
       width: 100%;
-      max-width: 1050px;
+      max-width: 1100px;
       padding: 20px;
-      box-sizing: border-box;
     }
 
     .app-card {
       background: rgba(30, 41, 59, 0.45);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255,255,255,0.08);
       border-radius: 24px;
       padding: 30px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
     }
 
+    /* ===================== HEADER ===================== */
     .app-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 25px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
       padding-bottom: 20px;
     }
 
@@ -66,15 +67,15 @@
     }
 
     .subtitle {
-      margin: 5px 0 0 0;
+      margin: 5px 0 0;
       font-size: 14px;
       color: #94a3b8;
       letter-spacing: 1px;
     }
 
     .lang-btn {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
       color: #f1f5f9;
       padding: 10px 20px;
       border-radius: 30px;
@@ -82,58 +83,112 @@
       font-weight: 600;
       font-size: 14px;
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
       display: flex;
       align-items: center;
       gap: 8px;
     }
-
     .lang-btn:hover {
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255,255,255,0.15);
       border-color: #38bdf8;
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+      box-shadow: 0 4px 12px rgba(56,189,248,0.2);
     }
 
-    .lang-btn:active {
-      transform: translateY(0);
-    }
-
+    /* ===================== MAIN LAYOUT ===================== */
     .main-content {
       display: grid;
       grid-template-columns: 1fr;
       gap: 25px;
     }
-
     @media (min-width: 900px) {
-      .main-content {
-        grid-template-columns: 640px 1fr;
-      }
+      .main-content { grid-template-columns: 640px 1fr; }
     }
 
-    .canvas-holder {
+    /* ===================== CANVAS AREA ===================== */
+    .canvas-wrapper {
       position: relative;
-      width: 100%;
-      padding-bottom: 75%; /* 4:3 aspect ratio */
-      height: 0;
-      overflow: hidden;
-      background: #020617;
+      width: 640px;
+      height: 480px;
       border-radius: 16px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      touch-action: manipulation; /* Improve touch responsiveness */
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.05);
+      background: #020617;
     }
 
-    /* p5.js Canvas Centering */
-    .canvas-holder canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100% !important;
-      height: 100% !important;
+    #output-canvas {
       display: block;
+      width: 640px;
+      height: 480px;
     }
 
+    /* Gesture hint badge - top right of canvas */
+    .gesture-hint {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 6px 12px;
+      font-size: 13px;
+      color: #cbd5e1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+    }
+    .gesture-hint span { display: flex; align-items: center; gap: 6px; }
+
+    /* Finger cursor dot — fixed on viewport, ABOVE overlay (z-index > 1000) */
+    #finger-cursor {
+      position: fixed;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(56,189,248,0.85);
+      box-shadow: 0 0 18px 6px rgba(56,189,248,0.55);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      display: none;
+      z-index: 1100;
+      transition: background 0.15s;
+    }
+    #finger-cursor.dwelling {
+      background: rgba(168,85,247,0.9);
+      box-shadow: 0 0 20px 8px rgba(168,85,247,0.6);
+    }
+
+    /* SVG dwell progress ring — also fixed, above overlay */
+    #dwell-ring {
+      position: fixed;
+      width: 50px;
+      height: 50px;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      display: none;
+      z-index: 1101;
+    }
+    #dwell-ring circle.track {
+      fill: none;
+      stroke: rgba(255,255,255,0.1);
+      stroke-width: 3;
+    }
+    #dwell-ring circle.progress {
+      fill: none;
+      stroke: #a855f7;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-dasharray: 125.66; /* 2π×20 */
+      stroke-dashoffset: 125.66;
+      transform: rotate(-90deg);
+      transform-origin: 25px 25px;
+      transition: stroke-dashoffset 0.05s linear;
+    }
+
+    /* ===================== DASHBOARD ===================== */
     .dashboard {
       display: flex;
       flex-direction: column;
@@ -141,8 +196,8 @@
     }
 
     .metric-card {
-      background: rgba(15, 23, 42, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.04);
+      background: rgba(15,23,42,0.4);
+      border: 1px solid rgba(255,255,255,0.04);
       border-radius: 16px;
       padding: 20px;
       display: flex;
@@ -164,7 +219,12 @@
       font-size: 42px;
       font-weight: 800;
       color: #38bdf8;
-      text-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+      text-shadow: 0 0 15px rgba(56,189,248,0.3);
+      transition: color 0.3s;
+    }
+    .metric-value.flash {
+      color: #f87171;
+      text-shadow: 0 0 20px rgba(248,113,113,0.5);
     }
 
     .state-badge {
@@ -176,19 +236,15 @@
       align-self: flex-start;
       transition: all 0.3s ease;
     }
-
     .state-badge.up {
-      background: rgba(34, 197, 94, 0.15);
+      background: rgba(34,197,94,0.15);
       color: #4ade80;
-      border: 1px solid rgba(74, 222, 128, 0.3);
-      text-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
+      border: 1px solid rgba(74,222,128,0.3);
     }
-
     .state-badge.down {
-      background: rgba(239, 68, 68, 0.15);
+      background: rgba(239,68,68,0.15);
       color: #f87171;
-      border: 1px solid rgba(248, 113, 113, 0.3);
-      text-shadow: 0 0 10px rgba(248, 113, 113, 0.2);
+      border: 1px solid rgba(248,113,113,0.3);
     }
 
     .angles-row {
@@ -196,36 +252,155 @@
       grid-template-columns: 1fr 1fr;
       gap: 15px;
     }
-
     .angle-item {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.03);
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.03);
       border-radius: 12px;
       padding: 12px;
       display: flex;
       flex-direction: column;
       align-items: center;
     }
+    .angle-name { font-size: 12px; color: #94a3b8; margin-bottom: 5px; }
+    .angle-val  { font-size: 20px; font-weight: 700; color: #e2e8f0; }
 
-    .angle-name {
-      font-size: 12px;
+    /* Gesture status card */
+    .gesture-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .gesture-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
       color: #94a3b8;
-      margin-bottom: 5px;
+    }
+    .gesture-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #334155;
+      flex-shrink: 0;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .gesture-dot.active {
+      background: #38bdf8;
+      box-shadow: 0 0 8px rgba(56,189,248,0.6);
+    }
+    .gesture-dot.fist-active {
+      background: #f87171;
+      box-shadow: 0 0 8px rgba(248,113,113,0.6);
+    }
+    .gesture-dot.wave-active {
+      background: #4ade80;
+      box-shadow: 0 0 8px rgba(74,222,128,0.6);
     }
 
-    .angle-val {
+    /* ===================== LANGUAGE OVERLAY ===================== */
+    #lang-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s cubic-bezier(0.4,0,0.2,1);
+    }
+    #lang-overlay.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .lang-overlay-card {
+      background: rgba(15,23,42,0.92);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 24px;
+      padding: 40px 50px;
+      text-align: center;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+      transform: scale(0.9);
+      transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    #lang-overlay.visible .lang-overlay-card {
+      transform: scale(1);
+    }
+
+    .lang-overlay-title {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, #38bdf8, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .lang-overlay-hint {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 32px;
+    }
+
+    .lang-options {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+    }
+
+    .lang-option {
+      position: relative;
+      width: 140px;
+      height: 80px;
+      background: rgba(255,255,255,0.04);
+      border: 2px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       font-size: 20px;
-      font-weight: 700;
-      color: #e2e8f0;
+      font-weight: 800;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+      overflow: hidden;
+    }
+    .lang-option:hover, .lang-option.hovered {
+      border-color: #38bdf8;
+      background: rgba(56,189,248,0.08);
+      transform: translateY(-3px);
+    }
+    .lang-option .flag { font-size: 28px; margin-bottom: 4px; }
+
+    /* Dwell fill bar inside option */
+    .lang-option .dwell-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #a855f7);
+      border-radius: 0 0 14px 14px;
+      transition: width 0.05s linear;
     }
 
+    .overlay-close-hint {
+      margin-top: 24px;
+      font-size: 12px;
+      color: #475569;
+    }
+
+    /* ===================== FOOTER ===================== */
     .app-footer {
       margin-top: 25px;
       padding-top: 20px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid rgba(255,255,255,0.06);
       text-align: center;
     }
-
     .app-footer p {
       margin: 0;
       font-size: 13px;
@@ -236,6 +411,28 @@
 </head>
 <body>
 
+<!-- =================== LANGUAGE OVERLAY =================== -->
+<div id="lang-overlay" role="dialog" aria-modal="true" aria-label="語言選擇">
+  <div class="lang-overlay-card">
+    <div class="lang-overlay-title">🌐 選擇語言 / Select Language</div>
+    <div class="lang-overlay-hint">用食指停留在選項上 1.2 秒即可選擇<br>Hover index finger over an option for 1.2s</div>
+    <div class="lang-options">
+      <div class="lang-option" id="opt-zh" data-lang="zh" onclick="selectLanguage('zh')">
+        <span class="flag">🇹🇼</span>
+        <span>中文</span>
+        <div class="dwell-fill" id="dwell-fill-zh"></div>
+      </div>
+      <div class="lang-option" id="opt-en" data-lang="en" onclick="selectLanguage('en')">
+        <span class="flag">🇬🇧</span>
+        <span>English</span>
+        <div class="dwell-fill" id="dwell-fill-en"></div>
+      </div>
+    </div>
+    <div class="overlay-close-hint">再比食指握拳手勢、按 Esc 或點擊背景關閉 · Index-fist again / Esc / backdrop to close</div>
+  </div>
+</div>
+
+<!-- =================== MAIN APP =================== -->
 <div class="app-container">
   <div class="app-card">
     <header class="app-header">
@@ -249,10 +446,19 @@
     </header>
 
     <div class="main-content">
-      <div id="canvas-holder" class="canvas-holder">
-        <!-- p5.js Canvas will be embedded here -->
+      <!-- Canvas Area -->
+      <div class="canvas-wrapper" id="canvas-wrapper">
+        <canvas id="output-canvas" width="640" height="480"></canvas>
+
+        <!-- Gesture hint overlay -->
+        <div class="gesture-hint">
+          <span>☝ 食指+握拳 → 語言切換</span>
+          <span>☝ 食指指向 → 點選</span>
+          <span>✊ 全握拳 → 歸零</span>
+        </div>
       </div>
 
+      <!-- Dashboard -->
       <div class="dashboard">
         <div class="metric-card count-card">
           <span id="metric-count-label" class="metric-label">當前次數</span>
@@ -277,294 +483,690 @@
             </div>
           </div>
         </div>
+
+        <!-- Gesture status card -->
+        <div class="metric-card gesture-card">
+          <span id="metric-gesture-label" class="metric-label">手勢偵測</span>
+          <div class="gesture-status">
+            <div class="gesture-dot" id="dot-trigger"></div>
+            <span id="gest-trigger-text">☝握拳 → 待機</span>
+          </div>
+          <div class="gesture-status">
+            <div class="gesture-dot" id="dot-index"></div>
+            <span id="gest-index-text">食指 → 待機</span>
+          </div>
+          <div class="gesture-status">
+            <div class="gesture-dot" id="dot-fist"></div>
+            <span id="gest-fist-text">全握拳 → 待機</span>
+          </div>
+        </div>
       </div>
     </div>
 
     <footer class="app-footer">
-      <p id="footer-text">請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。</p>
+      <p id="footer-text">請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。揮動單手呼叫語言選擇，食指停留點選，握拳歸零。</p>
     </footer>
   </div>
 </div>
 
+<!-- Hidden video element for camera -->
+<video id="input-video" style="display:none;" playsinline></video>
+
+<!-- Finger cursor & dwell ring: placed at body level, z-index above overlay -->
+<div id="finger-cursor"></div>
+<svg id="dwell-ring" viewBox="0 0 50 50">
+  <circle class="track" cx="25" cy="25" r="20"/>
+  <circle class="progress" id="dwell-arc" cx="25" cy="25" r="20"/>
+</svg>
+
 <script>
-let video;
-let poseNet;
-let pose = null;
-let poseReady = false;
-let detecting = false;
+'use strict';
 
-// State for push-up counting
-let state = 'up'; // 'up' or 'down'
-let count = 0;
-const STRAIGHT_ANGLE = 150; // Threshold for elbow extension to count as straight (in degrees)
-
-// Bilingual Translations Dictionary
+/* ================================================================
+   TRANSLATIONS
+   ================================================================ */
 let currentLang = 'zh';
 
 const texts = {
   zh: {
     title: "智能伏地挺身計數器",
     subtitle: "AI 身體關節姿態追蹤器",
-    loading: "載入 PoseNet 模型中...",
-    waiting: "等待偵測中...",
+    loading: "載入 MediaPipe Holistic 模型中...",
     countLabel: "當前次數",
     stateLabel: "動作狀態",
     anglesLabel: "手肘關節角度",
     leftElbow: "左手肘",
     rightElbow: "右手肘",
     notDetected: "未偵測到手肘，請調整攝影機位置",
-    footer: "請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。",
-    btnLang: "English"
+    footer: "請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。食指伸出握拳呼叫語言選擇，食指停留點選，全握拳歸零。",
+    btnLang: "English",
+    gestureLabel: "手勢偵測",
+    waveStandby: "☝握拳 → 待機",
+    waveActive: "語言選擇已開啟！",
+    indexStandby: "食指 → 待機",
+    indexActive: "食指指向中",
+    fistStandby: "全握拳 → 待機",
+    fistActive: "握拳！歸零中...",
+    resetMsg: "計數歸零！"
   },
   en: {
     title: "AI Push-up Counter",
     subtitle: "AI Body-Relative Pose Tracker",
-    loading: "Loading PoseNet model...",
-    waiting: "Waiting for detection...",
+    loading: "Loading MediaPipe Holistic...",
     countLabel: "Current Count",
     stateLabel: "Action State",
     anglesLabel: "Elbow Joint Angles",
     leftElbow: "Left Elbow",
     rightElbow: "Right Elbow",
     notDetected: "Elbows not detected. Adjust camera position.",
-    footer: "Please face the camera and ensure your head, shoulders, elbows, and wrists are fully in frame.",
-    btnLang: "中文"
+    footer: "Face the camera. Index-fist gesture opens language selector, index finger dwell selects, full fist resets count.",
+    btnLang: "中文",
+    gestureLabel: "Gesture Detection",
+    waveStandby: "☝Fist: standby",
+    waveActive: "Lang selector open!",
+    indexStandby: "Index: standby",
+    indexActive: "Index pointing",
+    fistStandby: "Full fist: standby",
+    fistActive: "Fist! Resetting...",
+    resetMsg: "Count Reset!"
   }
 };
 
+function applyLanguage(lang) {
+  currentLang = lang;
+  const t = texts[lang];
+  document.getElementById('title-text').innerText       = t.title;
+  document.getElementById('subtitle-text').innerText    = t.subtitle;
+  document.getElementById('btn-lang-text').innerText    = t.btnLang;
+  document.getElementById('metric-count-label').innerText  = t.countLabel;
+  document.getElementById('metric-state-label').innerText  = t.stateLabel;
+  document.getElementById('metric-angles-label').innerText = t.anglesLabel;
+  document.getElementById('left-angle-label').innerText    = t.leftElbow;
+  document.getElementById('right-angle-label').innerText   = t.rightElbow;
+  document.getElementById('footer-text').innerText         = t.footer;
+  document.getElementById('metric-gesture-label').innerText = t.gestureLabel;
+  document.getElementById('gest-trigger-text').innerText = t.waveStandby;
+  document.getElementById('gest-index-text').innerText   = t.indexStandby;
+  document.getElementById('gest-fist-text').innerText    = t.fistStandby;
+  document.getElementById('lang-btn').setAttribute('lang', lang === 'zh' ? 'zh-TW' : 'en');
+}
+
 function toggleLanguage() {
-  currentLang = currentLang === 'zh' ? 'en' : 'zh';
-
-  // Update DOM text elements
-  document.getElementById('title-text').innerText = texts[currentLang].title;
-  document.getElementById('subtitle-text').innerText = texts[currentLang].subtitle;
-  document.getElementById('btn-lang-text').innerText = texts[currentLang].btnLang;
-
-  document.getElementById('metric-count-label').innerText = texts[currentLang].countLabel;
-  document.getElementById('metric-state-label').innerText = texts[currentLang].stateLabel;
-  document.getElementById('metric-angles-label').innerText = texts[currentLang].anglesLabel;
-
-  document.getElementById('left-angle-label').innerText = texts[currentLang].leftElbow;
-  document.getElementById('right-angle-label').innerText = texts[currentLang].rightElbow;
-
-  document.getElementById('footer-text').innerText = texts[currentLang].footer;
+  selectLanguage(currentLang === 'zh' ? 'en' : 'zh');
 }
 
-function setup() {
-  // Create canvas and parent to the container
-  let canvas = createCanvas(640, 480);
-  canvas.parent('canvas-holder');
-
-  video = createCapture(VIDEO);
-  video.size(width, height);
-  video.hide();
-
-  // Load PoseNet model
-  const modelConfig = {
-    architecture: 'MobileNetV1',
-    outputStride: 16,
-    inputResolution: 512,
-    multiplier: 0.75
-  };
-  posenet.load(modelConfig).then(net => {
-    poseNet = net;
-    poseReady = true;
-    console.log('PoseNet ready');
-  });
+function selectLanguage(lang) {
+  applyLanguage(lang);
+  hideLangOverlay();
 }
 
-function windowResized() {
-  // Keep canvas size fixed; CSS will scale it.
-  // If you want to adapt resolution to window size, uncomment below:
-  // const w = min(windowWidth, 640);
-  // const h = w * 480 / 640;
-  // resizeCanvas(w, h);
+/* ================================================================
+   LANGUAGE OVERLAY
+   ================================================================ */
+let overlayVisible = false;
+// Per-option dwell state
+const dwellState = { zh: 0, en: 0 };
+const DWELL_DURATION = 1200; // ms
+let dwellActiveOption = null;
+let dwellStartTime = 0;
+
+function showLangOverlay() {
+  if (overlayVisible) return;
+  overlayVisible = true;
+  document.getElementById('lang-overlay').classList.add('visible');
+  // reset dwell fills
+  document.getElementById('dwell-fill-zh').style.width = '0%';
+  document.getElementById('dwell-fill-en').style.width = '0%';
+  dwellActiveOption = null;
 }
 
-// p5.js draw loop
-function draw() {
-  background(0);
-  image(video, 0, 0, width, height);
+function hideLangOverlay() {
+  if (!overlayVisible) return;
+  overlayVisible = false;
+  document.getElementById('lang-overlay').classList.remove('visible');
+  dwellActiveOption = null;
+  document.getElementById('dwell-fill-zh').style.width = '0%';
+  document.getElementById('dwell-fill-en').style.width = '0%';
+  // also hide cursor
+  setFingerCursor(null, null);
+}
 
-  if (poseReady && !detecting) {
-    detecting = true;
-    poseNet.estimateSinglePose(video.elt, {
-      flipHorizontal: false,
-      decodingMethod: 'single-person'
-    }).then(result => {
-      pose = result;
-      detecting = false;
-    }).catch(err => {
-      console.error(err);
-      detecting = false;
-    });
+/* ================================================================
+   FINGER CURSOR
+   ================================================================ */
+const fingerCursorEl = document.getElementById('finger-cursor');
+const dwellRingEl    = document.getElementById('dwell-ring');
+const dwellArcEl     = document.getElementById('dwell-arc');
+const CIRCUMFERENCE  = 2 * Math.PI * 20; // 125.66
+
+function setFingerCursor(x, y, dwelling = false) {
+  if (x === null) {
+    fingerCursorEl.style.display = 'none';
+    dwellRingEl.style.display    = 'none';
+    return;
+  }
+  fingerCursorEl.style.display = 'block';
+  fingerCursorEl.style.left    = x + 'px';
+  fingerCursorEl.style.top     = y + 'px';
+  fingerCursorEl.classList.toggle('dwelling', dwelling);
+  dwellRingEl.style.display    = 'block';
+  dwellRingEl.style.left       = x + 'px';
+  dwellRingEl.style.top        = y + 'px';
+}
+
+function setDwellProgress(ratio) {
+  const offset = CIRCUMFERENCE * (1 - ratio);
+  dwellArcEl.style.strokeDashoffset = offset;
+}
+
+/* ================================================================
+   PUSH-UP STATE
+   ================================================================ */
+let state = 'up';
+let count = 0;
+const STRAIGHT_ANGLE = 150;
+
+/* ================================================================
+   GESTURE STATE MACHINES
+   ================================================================ */
+
+// --- INDEX-FIST TRIGGER (food finger up + other 4 fingers curled → open overlay) ---
+const INDEX_FIST_HOLD_MS  = 800;  // must hold this long to trigger
+let indexFistStartTime    = null;
+let indexFistTriggered    = false;
+let indexFistCooldown     = 0;    // timestamp cooldown after trigger
+
+// --- FULL FIST (all 5 fingers) → reset count ---
+const FIST_HOLD_MS = 800;
+let fistStartTime  = null;
+let fistTriggered  = false;
+
+// --- INDEX POINTING CURSOR ---
+// Dwell handled above per-option
+
+/* ================================================================
+   GESTURE INDICATOR UPDATE
+   ================================================================ */
+function updateGestureUI(trigger, index, fist) {
+  const t = texts[currentLang];
+  const dotTrigger = document.getElementById('dot-trigger');
+  const dotIndex   = document.getElementById('dot-index');
+  const dotFist    = document.getElementById('dot-fist');
+
+  dotTrigger.className = 'gesture-dot' + (trigger ? ' wave-active' : '');
+  dotIndex.className   = 'gesture-dot' + (index   ? ' active'      : '');
+  dotFist.className    = 'gesture-dot' + (fist    ? ' fist-active' : '');
+
+  document.getElementById('gest-trigger-text').innerText = trigger ? t.waveActive  : t.waveStandby;
+  document.getElementById('gest-index-text').innerText   = index   ? t.indexActive : t.indexStandby;
+  document.getElementById('gest-fist-text').innerText    = fist    ? t.fistActive  : t.fistStandby;
+}
+
+/* ================================================================
+   MEDIAPIPE HOLISTIC SETUP
+   ================================================================ */
+const videoEl  = document.getElementById('input-video');
+const canvasEl = document.getElementById('output-canvas');
+const ctx      = canvasEl.getContext('2d');
+
+const holistic = new Holistic({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`
+});
+
+holistic.setOptions({
+  modelComplexity: 1,
+  smoothLandmarks: true,
+  enableSegmentation: false,
+  smoothSegmentation: false,
+  refineFaceLandmarks: false,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+
+holistic.onResults(onResults);
+
+const camera = new Camera(videoEl, {
+  onFrame: async () => {
+    await holistic.send({ image: videoEl });
+  },
+  width: 640,
+  height: 480
+});
+camera.start();
+
+/* ================================================================
+   MAIN RESULTS CALLBACK
+   ================================================================ */
+function onResults(results) {
+  ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+
+  // ---- Step 1: Draw camera feed MIRRORED (selfie effect) ----
+  ctx.save();
+  ctx.scale(-1, 1);
+  ctx.translate(-canvasEl.width, 0);
+  ctx.drawImage(results.image, 0, 0, canvasEl.width, canvasEl.height);
+
+  // ---- Step 2: Draw landmarks INSIDE the same mirror transform ----
+  // This ensures skeleton appears correctly mirrored on top of the video.
+  if (results.poseLandmarks) {
+    drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS,
+      { color: 'rgba(255,255,0,0.6)', lineWidth: 2 });
+    drawLandmarks(ctx, results.poseLandmarks,
+      { color: '#00FF00', lineWidth: 1, radius: 3 });
+  }
+  // MediaPipe left/right is from camera's perspective;
+  // in mirrored view, leftHandLandmarks appears on user's left side.
+  if (results.leftHandLandmarks) {
+    drawConnectors(ctx, results.leftHandLandmarks, HAND_CONNECTIONS,
+      { color: '#38bdf8', lineWidth: 2 });
+    drawLandmarks(ctx, results.leftHandLandmarks,
+      { color: '#93c5fd', lineWidth: 1, radius: 3 });
+  }
+  if (results.rightHandLandmarks) {
+    drawConnectors(ctx, results.rightHandLandmarks, HAND_CONNECTIONS,
+      { color: '#f472b6', lineWidth: 2 });
+    drawLandmarks(ctx, results.rightHandLandmarks,
+      { color: '#fda4af', lineWidth: 1, radius: 3 });
+  }
+  ctx.restore(); // remove mirror transform
+
+  // ---- Step 3: Process gestures ----
+  const now = Date.now();
+  // Prefer right hand (from camera) = user's left hand in mirror view
+  const gestureHand = results.rightHandLandmarks || results.leftHandLandmarks || null;
+
+  let triggerDetected = false;
+  let indexPointing   = false;
+  let fistDetected    = false;
+
+  if (gestureHand) {
+    triggerDetected = detectIndexFistTrigger(gestureHand, now);
+    indexPointing   = detectIndexPointing(gestureHand, now);
+    // Full fist only triggers reset when overlay is NOT open
+    if (!overlayVisible) {
+      fistDetected = detectFist(gestureHand, now);
+    } else {
+      // Reset fist state while overlay is open
+      fistStartTime = null;
+      fistTriggered = false;
+    }
+  } else {
+    // No hand visible → reset all gesture states
+    indexFistStartTime = null;
+    indexFistTriggered = false;
+    fistStartTime = null;
+    fistTriggered = false;
+    setFingerCursor(null, null);
+    if (dwellActiveOption !== null) {
+      document.getElementById('dwell-fill-zh').style.width = '0%';
+      document.getElementById('dwell-fill-en').style.width = '0%';
+      dwellActiveOption = null;
+    }
   }
 
-  if (pose) {
-    drawPose(pose);
-    processPose(pose);
-    drawCount();
-  } else if (!poseReady) {
-    // Show loading text
-    fill(255);
-    textSize(24);
-    textAlign(CENTER, CENTER);
-    text(texts[currentLang].loading, width / 2, height / 2);
+  updateGestureUI(triggerDetected, indexPointing, fistDetected);
+
+  // ---- Step 4: Process push-up pose ----
+  if (results.poseLandmarks) {
+    processPushUp(results.poseLandmarks);
   }
+
+  // ---- Step 5: Draw count on canvas ----
+  drawCount();
 }
 
-function drawPose(pose) {
-  if (pose.keypoints) {
-    // Draw keypoints
-    for (let i = 0; i < pose.keypoints.length; i++) {
-      let kp = pose.keypoints[i];
-      if (kp.score > 0.2) {
-        fill(0, 255, 0);
-        noStroke();
-        ellipse(kp.position.x, kp.position.y, 8, 8);
+/* ================================================================
+   INDEX-FIST TRIGGER DETECTION
+   Index finger extended + other 4 fingers curled → hold 0.8s → show overlay
+   ================================================================ */
+function isIndexFistGesture(hand) {
+  const indexTip = hand[8];
+  const indexPip = hand[6];
+  // Index extended: tip clearly above PIP
+  const indexUp = indexTip.y < indexPip.y - 0.04;
+
+  // Middle, ring, pinky: tips below their MCP (curled)
+  const middleDown = hand[12].y > hand[9].y;
+  const ringDown   = hand[16].y > hand[13].y;
+  const pinkyDown  = hand[20].y > hand[17].y;
+
+  // Thumb: tip near or below index MCP (tucked in)
+  const thumbTip = hand[4];
+  const indexMCP = hand[5];
+  const tdx = thumbTip.x - indexMCP.x;
+  const tdy = thumbTip.y - indexMCP.y;
+  const thumbTucked = Math.sqrt(tdx*tdx + tdy*tdy) < 0.18;
+
+  return indexUp && middleDown && ringDown && pinkyDown && thumbTucked;
+}
+
+function detectIndexFistTrigger(hand, now) {
+  const gesture = isIndexFistGesture(hand);
+
+  if (gesture) {
+    if (indexFistStartTime === null) {
+      indexFistStartTime = now;
+      indexFistTriggered = false;
+    } else if (!indexFistTriggered && (now - indexFistStartTime) >= INDEX_FIST_HOLD_MS
+               && now > indexFistCooldown) {
+      indexFistTriggered = true;
+      indexFistCooldown  = now + 3000; // 3s cooldown before can trigger again
+      if (!overlayVisible) {
+        showLangOverlay();
+      } else {
+        hideLangOverlay(); // toggle off if already open
       }
     }
-    // Draw skeleton
-    const skeleton = [
-      [5, 7], [7, 9], [6, 8], [8, 10], // arms
-      [5, 6], [5, 11], [6, 12], [11, 12], // torso
-      [11, 13], [13, 15], [12, 14], [14, 16] // legs
-    ];
-    stroke(255, 255, 0);
-    strokeWeight(2);
-    for (let i = 0; i < skeleton.length; i++) {
-      let a = pose.keypoints[skeleton[i][0]];
-      let b = pose.keypoints[skeleton[i][1]];
-      if (a.score > 0.2 && b.score > 0.2) {
-        line(a.position.x, a.position.y, b.position.x, b.position.y);
-      }
+  } else {
+    indexFistStartTime = null;
+    indexFistTriggered = false;
+  }
+
+  return gesture;
+}
+
+/* ================================================================
+   INDEX FINGER DETECTION + DWELL
+   ================================================================ */
+// MediaPipe hand landmarks (mirrored canvas):
+// 0=wrist, 4=thumb tip, 5=index MCP, 6=index PIP, 7=index DIP, 8=index tip
+// 9=middle MCP, 12=middle tip, 13=ring MCP, 16=ring tip, 17=pinky MCP, 20=pinky tip
+
+function isIndexPointing(hand) {
+  const indexTip = hand[8];
+  const indexPip = hand[6];
+  const middleTip = hand[12];
+  const ringTip   = hand[16];
+  const pinkyTip  = hand[20];
+  const indexMCP  = hand[5];
+
+  // Index finger extended: tip above PIP in y (lower y = higher on screen)
+  const indexUp = indexTip.y < indexPip.y - 0.04;
+
+  // Other fingers NOT extended: their tips are below their MCP y
+  const middleDown = middleTip.y > hand[9].y;
+  const ringDown   = ringTip.y   > hand[13].y;
+  const pinkyDown  = pinkyTip.y  > hand[17].y;
+
+  return indexUp && middleDown && ringDown && pinkyDown;
+}
+
+function detectIndexPointing(hand, now) {
+  // isIndexFistGesture already represents index-up + 4 fingers curled,
+  // which is also our "pointing cursor" gesture. Reuse that check.
+  const pointing = isIndexFistGesture(hand);
+
+  if (pointing) {
+    // Convert normalized tip coords → viewport (fixed) coords for the cursor.
+    // Mirror x because canvas feed is mirrored: mirror_x = 1 - raw_x
+    const tip = hand[8];
+    const mirroredX = 1 - tip.x;  // mirrored normalized x
+
+    const canvasRect = canvasEl.getBoundingClientRect();
+    // Map normalized [0,1] → viewport pixels
+    const viewportX = canvasRect.left + mirroredX * canvasRect.width;
+    const viewportY = canvasRect.top  + tip.y     * canvasRect.height;
+
+    setFingerCursor(viewportX, viewportY, dwellActiveOption !== null);
+
+    if (overlayVisible) {
+      updateDwellOnOptions(viewportX, viewportY, now);
+    } else {
+      setDwellProgress(0);
+      dwellActiveOption = null;
     }
+  } else {
+    setFingerCursor(null, null);
+    if (dwellActiveOption !== null) {
+      document.getElementById('dwell-fill-zh').style.width = '0%';
+      document.getElementById('dwell-fill-en').style.width = '0%';
+      dwellActiveOption = null;
+    }
+    setDwellProgress(0);
+  }
+
+  return pointing;
+}
+
+function updateDwellOnOptions(pageX, pageY, now) {
+  const optZh = document.getElementById('opt-zh');
+  const optEn = document.getElementById('opt-en');
+  const hoveredLang = getHoveredLang(pageX, pageY, optZh, optEn);
+
+  optZh.classList.toggle('hovered', hoveredLang === 'zh');
+  optEn.classList.toggle('hovered', hoveredLang === 'en');
+
+  if (hoveredLang) {
+    if (dwellActiveOption !== hoveredLang) {
+      // Switched option → reset
+      dwellActiveOption = hoveredLang;
+      dwellStartTime    = now;
+      document.getElementById('dwell-fill-zh').style.width = '0%';
+      document.getElementById('dwell-fill-en').style.width = '0%';
+    }
+    const elapsed = now - dwellStartTime;
+    const ratio   = Math.min(elapsed / DWELL_DURATION, 1);
+    setDwellProgress(ratio);
+
+    // Update the fill bar for the hovered option
+    const fillId = hoveredLang === 'zh' ? 'dwell-fill-zh' : 'dwell-fill-en';
+    document.getElementById(fillId).style.width = (ratio * 100) + '%';
+
+    if (ratio >= 1) {
+      selectLanguage(hoveredLang);
+    }
+  } else {
+    if (dwellActiveOption !== null) {
+      document.getElementById('dwell-fill-zh').style.width = '0%';
+      document.getElementById('dwell-fill-en').style.width = '0%';
+      dwellActiveOption = null;
+    }
+    setDwellProgress(0);
   }
 }
+
+function getHoveredLang(x, y, optZhEl, optEnEl) {
+  const r1 = optZhEl.getBoundingClientRect();
+  const r2 = optEnEl.getBoundingClientRect();
+  if (x >= r1.left && x <= r1.right && y >= r1.top && y <= r1.bottom) return 'zh';
+  if (x >= r2.left && x <= r2.right && y >= r2.top && y <= r2.bottom) return 'en';
+  return null;
+}
+
+/* ================================================================
+   FIST DETECTION
+   ================================================================ */
+function isFist(hand) {
+  // Check all four fingers: tips below their MCP nodes
+  const fingerTips = [8, 12, 16, 20];
+  const fingerMCPs = [5,  9, 13, 17];
+
+  for (let i = 0; i < fingerTips.length; i++) {
+    if (hand[fingerTips[i]].y < hand[fingerMCPs[i]].y) return false; // finger extended
+  }
+  // Thumb: tip near index MCP
+  const thumbTip  = hand[4];
+  const indexMCP  = hand[5];
+  const dx = thumbTip.x - indexMCP.x;
+  const dy = thumbTip.y - indexMCP.y;
+  const thumbClose = Math.sqrt(dx*dx + dy*dy) < 0.15;
+
+  return thumbClose;
+}
+
+function detectFist(hand, now) {
+  const fist = isFist(hand);
+
+  if (fist) {
+    if (fistStartTime === null) {
+      fistStartTime = now;
+      fistTriggered = false;
+    } else if (!fistTriggered && (now - fistStartTime) >= FIST_HOLD_MS) {
+      fistTriggered = true;
+      triggerReset();
+    }
+  } else {
+    fistStartTime = null;
+    fistTriggered = false;
+  }
+
+  return fist;
+}
+
+function triggerReset() {
+  count = 0;
+  state = 'up';
+  document.getElementById('metric-count-val').innerText = '0';
+  const stateBadge = document.getElementById('metric-state-val');
+  stateBadge.innerText   = 'UP';
+  stateBadge.className   = 'state-badge up';
+
+  // Flash animation
+  const countValEl = document.getElementById('metric-count-val');
+  countValEl.classList.add('flash');
+  setTimeout(() => countValEl.classList.remove('flash'), 800);
+
+  // Reset angle display
+  document.getElementById('left-angle-val').innerText  = '--';
+  document.getElementById('right-angle-val').innerText = '--';
+}
+
+/* ================================================================
+   PUSH-UP COUNTING (MediaPipe Pose landmarks)
+   ================================================================ */
+// MediaPipe Pose landmark indices
+// 11=left shoulder, 12=right shoulder, 13=left elbow, 14=right elbow
+// 15=left wrist,    16=right wrist,    0=nose
 
 function getAngle(a, b, c) {
-  const baX = a.x - b.x;
-  const baY = a.y - b.y;
-  const bcX = c.x - b.x;
-  const bcY = c.y - b.y;
-  const dotProduct = baX * bcX + baY * bcY;
-  const magBA = Math.sqrt(baX * baX + baY * baY);
-  const magBC = Math.sqrt(bcX * bcX + bcY * bcY);
+  const baX = a.x - b.x, baY = a.y - b.y;
+  const bcX = c.x - b.x, bcY = c.y - b.y;
+  const dot = baX * bcX + baY * bcY;
+  const magBA = Math.sqrt(baX*baX + baY*baY);
+  const magBC = Math.sqrt(bcX*bcX + bcY*bcY);
   if (magBA === 0 || magBC === 0) return 0;
-  let cosAngle = dotProduct / (magBA * magBC);
-  cosAngle = Math.max(-1, Math.min(1, cosAngle));
-  return Math.acos(cosAngle) * (180 / Math.PI);
+  let cosA = Math.max(-1, Math.min(1, dot / (magBA * magBC)));
+  return Math.acos(cosA) * 180 / Math.PI;
 }
 
-function processPose(pose) {
-  if (!pose.keypoints) return;
-  const nose = pose.keypoints.find(k => k.part === 'nose');
+function processPushUp(landmarks) {
+  // landmarks are normalized [0,1]
+  const nose         = landmarks[0];
+  const leftShoulder = landmarks[11];
+  const rightShoulder= landmarks[12];
+  const leftElbow    = landmarks[13];
+  const rightElbow   = landmarks[14];
+  const leftWrist    = landmarks[15];
+  const rightWrist   = landmarks[16];
 
-  // Find shoulder Y baseline relative to current shoulder positions
-  const leftShoulder = pose.keypoints.find(k => k.part === 'leftShoulder');
-  const rightShoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
-  let shouldersY = [];
-  if (leftShoulder && leftShoulder.score > 0.5) shouldersY.push(leftShoulder.position.y);
-  if (rightShoulder && rightShoulder.score > 0.5) shouldersY.push(rightShoulder.position.y);
+  // Collect shoulder Y positions (use visibility as confidence)
+  const shoulderYArr = [];
+  if (leftShoulder.visibility  > 0.5) shoulderYArr.push(leftShoulder.y);
+  if (rightShoulder.visibility > 0.5) shoulderYArr.push(rightShoulder.y);
 
-  if (nose && nose.score > 0.5 && shouldersY.length > 0) {
-    const ny = nose.position.y;
-    const shoulderY = shouldersY.reduce((a, b) => a + b, 0) / shouldersY.length;
+  if (!nose || nose.visibility < 0.5 || shoulderYArr.length === 0) return;
 
-    // Detect active arm angles
-    let angles = [];
-    const leftElbow = pose.keypoints.find(k => k.part === 'leftElbow');
-    const leftWrist = pose.keypoints.find(k => k.part === 'leftWrist');
-    if (leftShoulder && leftShoulder.score > 0.5 &&
-        leftElbow && leftElbow.score > 0.5 &&
-        leftWrist && leftWrist.score > 0.5) {
-      const angle = getAngle(leftShoulder.position, leftElbow.position, leftWrist.position);
-      angles.push({ side: 'Left', val: angle });
-    }
+  const shoulderY = shoulderYArr.reduce((a, b) => a + b, 0) / shoulderYArr.length;
+  const noseY     = nose.y;
 
-    const rightElbow = pose.keypoints.find(k => k.part === 'rightElbow');
-    const rightWrist = pose.keypoints.find(k => k.part === 'rightWrist');
-    if (rightShoulder && rightShoulder.score > 0.5 &&
-        rightElbow && rightElbow.score > 0.5 &&
-        rightWrist && rightWrist.score > 0.5) {
-      const angle = getAngle(rightShoulder.position, rightElbow.position, rightWrist.position);
-      angles.push({ side: 'Right', val: angle });
-    }
-
-    // Determine if any detected arm is straight
-    const hasStraightArm = angles.length > 0 && angles.some(a => a.val >= STRAIGHT_ANGLE);
-
-    // Detect state transitions
-    if (ny >= shoulderY && state === 'up') {
-      state = 'down';
-    } else if (ny < shoulderY && hasStraightArm && state === 'down') {
-      state = 'up';
-      count++;
-      speakCount(count);
-    }
-
-    // Visual feedback: Draw shoulder line
-    stroke(255, 255, 0);
-    strokeWeight(2);
-    line(0, shoulderY, width, shoulderY);
-
-    // Visual feedback: Draw nose indicator
-    fill(state === 'down' ? 'red' : 'green');
-    noStroke();
-    ellipse(nose.position.x, ny, 16, 16);
-
-    // Visual feedback: Display elbow angles on canvas
-    fill(255);
-    noStroke();
-    textSize(18);
-    textAlign(LEFT, TOP);
-    let textY = 100;
-
-    angles.forEach(a => {
-      let sideLabel = a.side === 'Left' ? texts[currentLang].leftElbow : texts[currentLang].rightElbow;
-      text(`${sideLabel}: ${Math.round(a.val)}°`, 20, textY);
-      textY += 25;
-    });
-
-    if (angles.length === 0) {
-      fill(255, 0, 0);
-      text(texts[currentLang].notDetected, 20, textY);
-    }
-
-    // Update Dashboard DOM Elements
-    document.getElementById('metric-count-val').innerText = count;
-
-    let stateBadge = document.getElementById('metric-state-val');
-    if (stateBadge) {
-      stateBadge.innerText = state.toUpperCase();
-      stateBadge.className = 'state-badge ' + state.toLowerCase();
-    }
-
-    let leftAngleVal = document.getElementById('left-angle-val');
-    let rightAngleVal = document.getElementById('right-angle-val');
-    if (leftAngleVal) leftAngleVal.innerText = '--';
-    if (rightAngleVal) rightAngleVal.innerText = '--';
-
-    angles.forEach(a => {
-      if (a.side === 'Left' && leftAngleVal) {
-        leftAngleVal.innerText = Math.round(a.val) + '°';
-      }
-      if (a.side === 'Right' && rightAngleVal) {
-        rightAngleVal.innerText = Math.round(a.val) + '°';
-      }
-    });
+  // Compute elbow angles
+  let angles = [];
+  if (leftShoulder.visibility  > 0.5 && leftElbow.visibility  > 0.5 && leftWrist.visibility  > 0.5) {
+    const angle = getAngle(leftShoulder, leftElbow, leftWrist);
+    angles.push({ side: 'Left', val: angle });
   }
+  if (rightShoulder.visibility > 0.5 && rightElbow.visibility > 0.5 && rightWrist.visibility > 0.5) {
+    const angle = getAngle(rightShoulder, rightElbow, rightWrist);
+    angles.push({ side: 'Right', val: angle });
+  }
+
+  const hasStraightArm = angles.length > 0 && angles.some(a => a.val >= STRAIGHT_ANGLE);
+
+  // State transitions
+  if (noseY >= shoulderY && state === 'up') {
+    state = 'down';
+  } else if (noseY < shoulderY && hasStraightArm && state === 'down') {
+    state = 'up';
+    count++;
+    speakCount(count);
+  }
+
+  // Draw reference line on canvas (normalized → canvas pixels)
+  const shoulderCanvasY = shoulderY * canvasEl.height;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,0,0.8)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 5]);
+  ctx.beginPath();
+  ctx.moveTo(0, shoulderCanvasY);
+  ctx.lineTo(canvasEl.width, shoulderCanvasY);
+  ctx.stroke();
+  ctx.restore();
+
+  // Draw nose indicator (mirrored x)
+  const noseCanvasX = (1 - nose.x) * canvasEl.width;
+  const noseCanvasY = nose.y * canvasEl.height;
+  ctx.save();
+  ctx.fillStyle = state === 'down' ? '#f87171' : '#4ade80';
+  ctx.shadowColor = state === 'down' ? '#f87171' : '#4ade80';
+  ctx.shadowBlur  = 12;
+  ctx.beginPath();
+  ctx.arc(noseCanvasX, noseCanvasY, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Update DOM
+  document.getElementById('metric-count-val').innerText = count;
+  const stateBadge = document.getElementById('metric-state-val');
+  stateBadge.innerText = state.toUpperCase();
+  stateBadge.className = 'state-badge ' + state;
+
+  let leftAngleEl  = document.getElementById('left-angle-val');
+  let rightAngleEl = document.getElementById('right-angle-val');
+  leftAngleEl.innerText  = '--';
+  rightAngleEl.innerText = '--';
+  angles.forEach(a => {
+    if (a.side === 'Left')  leftAngleEl.innerText  = Math.round(a.val) + '°';
+    if (a.side === 'Right') rightAngleEl.innerText = Math.round(a.val) + '°';
+  });
+
+  // Draw elbow angles on canvas
+  ctx.save();
+  ctx.fillStyle    = 'rgba(255,255,255,0.9)';
+  ctx.font         = 'bold 15px Outfit, sans-serif';
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'top';
+  let textY = 90;
+  angles.forEach(a => {
+    const label = a.side === 'Left' ? texts[currentLang].leftElbow : texts[currentLang].rightElbow;
+    ctx.fillText(`${label}: ${Math.round(a.val)}°`, 14, textY);
+    textY += 24;
+  });
+  if (angles.length === 0) {
+    ctx.fillStyle = 'rgba(248,113,113,0.9)';
+    ctx.fillText(texts[currentLang].notDetected, 14, textY);
+  }
+  ctx.restore();
 }
 
-// Display count on canvas
+/* ================================================================
+   DRAW COUNT ON CANVAS
+   ================================================================ */
 function drawCount() {
-  fill(255);
-  noStroke();
-  textSize(32);
-  textAlign(CENTER, CENTER);
-  text(`${texts[currentLang].countLabel}: ${count}`, width / 2, 50);
+  ctx.save();
+  ctx.fillStyle    = 'rgba(255,255,255,0.95)';
+  ctx.font         = 'bold 28px Outfit, sans-serif';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor  = 'rgba(56,189,248,0.5)';
+  ctx.shadowBlur   = 12;
+  ctx.fillText(`${texts[currentLang].countLabel}: ${count}`, canvasEl.width / 2, 14);
+  ctx.restore();
 }
 
+/* ================================================================
+   SPEECH SYNTHESIS
+   ================================================================ */
 function speakCount(num) {
   if (window.speechSynthesis) {
     const utter = new SpeechSynthesisUtterance(num.toString());
@@ -573,6 +1175,31 @@ function speakCount(num) {
     window.speechSynthesis.speak(utter);
   }
 }
+
+/* ================================================================
+   LOADING STATE ON CANVAS
+   ================================================================ */
+(function showLoadingState() {
+  ctx.fillStyle = '#020617';
+  ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
+  ctx.fillStyle    = 'rgba(255,255,255,0.7)';
+  ctx.font         = '18px Outfit, sans-serif';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(texts[currentLang].loading, canvasEl.width / 2, canvasEl.height / 2);
+})();
+
+/* ================================================================
+   KEYBOARD SHORTCUT: Escape to close overlay
+   ================================================================ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && overlayVisible) hideLangOverlay();
+});
+
+// Close overlay if clicking backdrop
+document.getElementById('lang-overlay').addEventListener('click', function(e) {
+  if (e.target === this) hideLangOverlay();
+});
 </script>
 </body>
 </html>
