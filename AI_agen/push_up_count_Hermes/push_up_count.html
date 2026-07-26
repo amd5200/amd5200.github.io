@@ -108,19 +108,24 @@
     /* ===================== CANVAS AREA ===================== */
     .canvas-wrapper {
       position: relative;
-      width: 640px;
-      height: 480px;
-      border-radius: 16px;
+      width: 100%;
+      max-width: 640px;
+      padding-bottom: 75%; /* 4:3 aspect ratio */
+      height: 0;
       overflow: hidden;
+      border-radius: 16px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.4);
       border: 1px solid rgba(255,255,255,0.05);
       background: #020617;
     }
 
     #output-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       display: block;
-      width: 640px;
-      height: 480px;
     }
 
     /* Gesture hint badge - top right of canvas */
@@ -448,13 +453,13 @@
     <div class="main-content">
       <!-- Canvas Area -->
       <div class="canvas-wrapper" id="canvas-wrapper">
-        <canvas id="output-canvas" width="640" height="480"></canvas>
+        <canvas id="output-canvas"></canvas>
 
         <!-- Gesture hint overlay -->
         <div class="gesture-hint">
           <span>☝ 食指+握拳 → 語言切換</span>
           <span>☝ 食指指向 → 點選</span>
-          <span>✊ 全握拳 → 歸零</span>
+          <span>👌 OK 手勢 → 歸零 (2秒)</span>
         </div>
       </div>
 
@@ -497,14 +502,14 @@
           </div>
           <div class="gesture-status">
             <div class="gesture-dot" id="dot-fist"></div>
-            <span id="gest-fist-text">全握拳 → 待機</span>
+            <span id="gest-fist-text">👌 OK 手勢 → 待機</span>
           </div>
         </div>
       </div>
     </div>
 
     <footer class="app-footer">
-      <p id="footer-text">請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。揮動單手呼叫語言選擇，食指停留點選，握拳歸零。</p>
+      <p id="footer-text">請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。揮動單手呼叫語言選擇，食指停留點選，👌 OK 手勢歸零（需維持 2 秒）。</p>
     </footer>
   </div>
 </div>
@@ -538,15 +543,15 @@ const texts = {
     leftElbow: "左手肘",
     rightElbow: "右手肘",
     notDetected: "未偵測到手肘，請調整攝影機位置",
-    footer: "請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。食指伸出握拳呼叫語言選擇，食指停留點選，全握拳歸零。",
+    footer: "請將身體面向攝影機，並確保頭部、肩膀、手肘及手腕完全入鏡。揮動單手呼叫語言選擇，食指停留點選，👌 OK 手勢歸零（需維持 2 秒）。",
     btnLang: "English",
     gestureLabel: "手勢偵測",
     waveStandby: "☝握拳 → 待機",
     waveActive: "語言選擇已開啟！",
     indexStandby: "食指 → 待機",
     indexActive: "食指指向中",
-    fistStandby: "全握拳 → 待機",
-    fistActive: "握拳！歸零中...",
+    fistStandby: "👌 OK 手勢 → 待機",
+    fistActive: "👌 OK 手勢 → 歸零中...",
     resetMsg: "計數歸零！"
   },
   en: {
@@ -559,15 +564,15 @@ const texts = {
     leftElbow: "Left Elbow",
     rightElbow: "Right Elbow",
     notDetected: "Elbows not detected. Adjust camera position.",
-    footer: "Face the camera. Index-fist gesture opens language selector, index finger dwell selects, full fist resets count.",
+    footer: "Face the camera. Index-fist gesture opens language selector, index finger dwell selects, 👌 OK gesture resets count (hold 2s).",
     btnLang: "中文",
     gestureLabel: "Gesture Detection",
     waveStandby: "☝Fist: standby",
     waveActive: "Lang selector open!",
     indexStandby: "Index: standby",
     indexActive: "Index pointing",
-    fistStandby: "Full fist: standby",
-    fistActive: "Fist! Resetting...",
+    fistStandby: "👌 OK gesture: standby",
+    fistActive: "👌 OK gesture: resetting...",
     resetMsg: "Count Reset!"
   }
 };
@@ -670,36 +675,36 @@ const STRAIGHT_ANGLE = 150;
    GESTURE STATE MACHINES
    ================================================================ */
 
-// --- INDEX-FIST TRIGGER (food finger up + other 4 fingers curled → open overlay) ---
+/* --- INDEX-FIST TRIGGER (index finger up + other 4 fingers curled → open overlay) --- */
 const INDEX_FIST_HOLD_MS  = 800;  // must hold this long to trigger
 let indexFistStartTime    = null;
 let indexFistTriggered    = false;
 let indexFistCooldown     = 0;    // timestamp cooldown after trigger
 
-// --- FULL FIST (all 5 fingers) → reset count ---
-const FIST_HOLD_MS = 800;
-let fistStartTime  = null;
-let fistTriggered  = false;
+/* --- OK GESTURE (thumb & index tip close) → reset count --- */
+const OK_HOLD_MS = 2000; // 2 seconds
+let okStartTime  = null;
+let okTriggered  = false;
 
-// --- INDEX POINTING CURSOR ---
+/* --- INDEX POINTING CURSOR --- */
 // Dwell handled above per-option
 
 /* ================================================================
    GESTURE INDICATOR UPDATE
    ================================================================ */
-function updateGestureUI(trigger, index, fist) {
+function updateGestureUI(trigger, index, ok) {
   const t = texts[currentLang];
   const dotTrigger = document.getElementById('dot-trigger');
   const dotIndex   = document.getElementById('dot-index');
-  const dotFist    = document.getElementById('dot-fist');
+  const dotOk      = document.getElementById('dot-fist'); // keep same id for dot
 
   dotTrigger.className = 'gesture-dot' + (trigger ? ' wave-active' : '');
   dotIndex.className   = 'gesture-dot' + (index   ? ' active'      : '');
-  dotFist.className    = 'gesture-dot' + (fist    ? ' fist-active' : '');
+  dotOk.className      = 'gesture-dot' + (ok      ? ' fist-active' : '');
 
   document.getElementById('gest-trigger-text').innerText = trigger ? t.waveActive  : t.waveStandby;
   document.getElementById('gest-index-text').innerText   = index   ? t.indexActive : t.indexStandby;
-  document.getElementById('gest-fist-text').innerText    = fist    ? t.fistActive  : t.fistStandby;
+  document.getElementById('gest-fist-text').innerText    = ok      ? t.fistActive  : t.fistStandby;
 }
 
 /* ================================================================
@@ -733,6 +738,21 @@ const camera = new Camera(videoEl, {
   height: 480
 });
 camera.start();
+
+/* ================================================================
+   CANVAS RESIZE HANDLER
+   ================================================================ */
+function resizeCanvas() {
+  const wrapper = document.getElementById('canvas-wrapper');
+  if (wrapper) {
+    const w = wrapper.clientWidth;
+    const h = w * 0.75; // maintain 4:3 aspect
+    canvasEl.width = w;
+    canvasEl.height = h;
+  }
+}
+window.addEventListener('load', resizeCanvas);
+window.addEventListener('resize', resizeCanvas);
 
 /* ================================================================
    MAIN RESULTS CALLBACK
@@ -777,34 +797,35 @@ function onResults(results) {
 
   let triggerDetected = false;
   let indexPointing   = false;
-  let fistDetected    = false;
+  let okDetected      = false;
 
   if (gestureHand) {
     triggerDetected = detectIndexFistTrigger(gestureHand, now);
     indexPointing   = detectIndexPointing(gestureHand, now);
-    // Full fist only triggers reset when overlay is NOT open
+    // OK gesture only triggers reset when overlay is NOT open
     if (!overlayVisible) {
-      fistDetected = detectFist(gestureHand, now);
+      okDetected = detectOK(gestureHand, now);
     } else {
-      // Reset fist state while overlay is open
-      fistStartTime = null;
-      fistTriggered = false;
+      // Reset OK state while overlay is open
+      okStartTime = null;
+      okTriggered = false;
     }
   } else {
     // No hand visible → reset all gesture states
     indexFistStartTime = null;
     indexFistTriggered = false;
-    fistStartTime = null;
-    fistTriggered = false;
+    okStartTime = null;
+    okTriggered = false;
     setFingerCursor(null, null);
     if (dwellActiveOption !== null) {
       document.getElementById('dwell-fill-zh').style.width = '0%';
       document.getElementById('dwell-fill-en').style.width = '0%';
       dwellActiveOption = null;
     }
+    setDwellProgress(0);
   }
 
-  updateGestureUI(triggerDetected, indexPointing, fistDetected);
+  updateGestureUI(triggerDetected, indexPointing, okDetected);
 
   // ---- Step 4: Process push-up pose ----
   if (results.poseLandmarks) {
@@ -974,45 +995,49 @@ function getHoveredLang(x, y, optZhEl, optEnEl) {
 }
 
 /* ================================================================
-   FIST DETECTION
+   OK GESTURE DETECTION
+   Thumb tip and index tip close → hold 2000ms → reset count
    ================================================================ */
-function isFist(hand) {
-  // Check all four fingers: tips below their MCP nodes
-  const fingerTips = [8, 12, 16, 20];
-  const fingerMCPs = [5,  9, 13, 17];
+function isOK(hand) {
+  const thumbTip = hand[4];
+  const indexTip = hand[8];
+  const dx = thumbTip.x - indexTip.x;
+  const dy = thumbTip.y - indexTip.y;
+  const distance = Math.sqrt(dx*dx + dy*dy);
 
-  for (let i = 0; i < fingerTips.length; i++) {
-    if (hand[fingerTips[i]].y < hand[fingerMCPs[i]].y) return false; // finger extended
-  }
-  // Thumb: tip near index MCP
-  const thumbTip  = hand[4];
-  const indexMCP  = hand[5];
-  const dx = thumbTip.x - indexMCP.x;
-  const dy = thumbTip.y - indexMCP.y;
-  const thumbClose = Math.sqrt(dx*dx + dy*dy) < 0.15;
+  // Thumb and index tip close (threshold ~0.05)
+  const close = distance < 0.05;
 
-  return thumbClose;
+  // Other three fingers extended (tips above MCP)
+  const middleUp = hand[12].y < hand[9].y;
+  const ringUp   = hand[16].y < hand[13].y;
+  const pinkyUp  = hand[20].y < hand[17].y;
+
+  return close && middleUp && ringUp && pinkyUp;
 }
 
-function detectFist(hand, now) {
-  const fist = isFist(hand);
+function detectOK(hand, now) {
+  const ok = isOK(hand);
 
-  if (fist) {
-    if (fistStartTime === null) {
-      fistStartTime = now;
-      fistTriggered = false;
-    } else if (!fistTriggered && (now - fistStartTime) >= FIST_HOLD_MS) {
-      fistTriggered = true;
+  if (ok) {
+    if (okStartTime === null) {
+      okStartTime = now;
+      okTriggered = false;
+    } else if (!okTriggered && (now - okStartTime) >= OK_HOLD_MS) {
+      okTriggered = true;
       triggerReset();
     }
   } else {
-    fistStartTime = null;
-    fistTriggered = false;
+    okStartTime = null;
+    okTriggered = false;
   }
 
-  return fist;
+  return ok;
 }
 
+/* ================================================================
+   TRIGGER RESET (COUNT ZERO)
+   ================================================================ */
 function triggerReset() {
   count = 0;
   state = 'up';
