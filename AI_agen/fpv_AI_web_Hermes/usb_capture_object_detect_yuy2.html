@@ -139,6 +139,8 @@
             height: 100%;
             object-fit: contain;
             display: none;
+            pointer-events: auto;
+            cursor: crosshair;
         }
 
         .vr-split canvas#canvas-left {
@@ -363,6 +365,27 @@
             </div>
 
             <div class="card">
+                <div class="card-title">Tracking Targets (追蹤目標)</div>
+                
+                <!-- Manual Track Control -->
+                <div style="margin-bottom: 15px; background: rgba(93, 220, 255, 0.05); padding: 12px; border-radius: 10px; border: 1px dashed rgba(93, 220, 255, 0.2);">
+                    <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--primary); display: flex; align-items: center; gap: 6px;">🎯 手動框選追蹤 / Manual Box</div>
+                    <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px;">在影像畫面上按住並拖曳滑鼠或手指圈選任意目標，即可鎖定追蹤。</div>
+                    <button id="clear-manual-track-btn" class="btn" style="margin-bottom: 0; padding: 6px 12px; font-size: 12px; background: rgba(254, 64, 102, 0.15); border-color: var(--accent); color: var(--accent); display: none; width: auto; font-weight: 600;">❌ 清除手動追蹤 / Reset Target</button>
+                </div>
+
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                    <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--primary); font-weight: 600;">
+                        <input type="checkbox" id="select-all-targets" checked style="accent-color: var(--primary); width: 16px; height: 16px;">
+                        全選追蹤目標 / Select All
+                    </label>
+                </div>
+                <div id="target-checkboxes-container" style="display: grid; grid-template-columns: 1fr; gap: 8px; font-size: 13px; max-height: 180px; overflow-y: auto; padding-right: 5px;">
+                    <!-- Checkboxes dynamically rendered -->
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-title">System Log</div>
                 <div id="log" class="log-panel">
                     System initialized.<br>
@@ -378,6 +401,12 @@
         let lastTimestamp = 0;
         let isDetecting = false;
         let detectionThreshold = 0.75;
+
+        // Manual Bounding Box Tracking variables
+        let manualTrackBox = null;
+        let isDrawingBox = false;
+        let startX = 0, startY = 0;
+        let currentDrawBox = null;
 
         const video = document.getElementById("video");
         const canvasLeft = document.getElementById("canvas-left");
@@ -606,6 +635,275 @@
             requestAnimationFrame(detectLoop);
         }
 
+        // Persistent offscreen canvas for high-performance template processing
+        const offscreenCanvas = document.createElement('canvas');
+        const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+        // Helper to convert client coordinates to canvas rendering coordinates
+        function getCanvasCoords(e, canvas) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            // Map coordinates based on CSS scaled boundaries vs internal width/height
+            const x = ((clientX - rect.left) / rect.width) * canvas.width;
+            const y = ((clientY - rect.top) / rect.height) * canvas.height;
+            return { x, y };
+        }
+
+        // Extract grayscale pixels from specified box on the canvas (called only once on box creation)
+        function getGrayPixels(ctx, x, y, w, h, targetW, targetH) {
+            offscreenCanvas.width = targetW;
+            offscreenCanvas.height = targetH;
+            try {
+                offscreenCtx.drawImage(ctx.canvas, x, y, w, h, 0, 0, targetW, targetH);
+            } catch(e) {}
+            const imgData = offscreenCtx.getImageData(0, 0, targetW, targetH);
+            const data = imgData.data;
+            const gray = new Float32Array(targetW * targetH);
+            for (let i = 0; i < data.length; i += 4) {
+                gray[i / 4] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            }
+            return gray;
+        }
+
+        // Super-optimized SSD template matching using scaled-down search region on a single offscreen canvas
+        function updateManualTracker(videoCtx) {
+            if (!manualTrackBox) return;
+
+            const { x, y, w, h, templateGray } = manualTrackBox;
+            const targetW = 16; // 16x16 downsampled matching for maximum speed
+            const targetH = 16;
+
+            // Search pad in original video coordinate space
+            const searchPad = 40;
+            const searchX = Math.max(0, x - searchPad);
+            const searchY = Math.max(0, y - searchPad);
+            const searchW = Math.min(videoCtx.canvas.width - searchX, w + searchPad * 2);
+            const searchH = Math.min(videoCtx.canvas.height - searchY, h + searchPad * 2);
+
+            if (searchW < w || searchH < h) {
+                manualTrackBox = null;
+                document.getElementById('clear-manual-track-btn').style.display = 'none';
+                return;
+            }
+
+            // Downsampling scale factor matching original template width/height ratio
+            const scaleX = targetW / w;
+            const scaleY = targetH / h;
+
+            const scaledSearchW = Math.round(searchW * scaleX);
+            const scaledSearchH = Math.round(searchH * scaleY);
+
+            if (scaledSearchW < targetW || scaledSearchH < targetH) return;
+
+            // Setup dimensions of reuse canvas
+            offscreenCanvas.width = scaledSearchW;
+            offscreenCanvas.height = scaledSearchH;
+
+            // Draw full search region onto canvas to scale it down in GPU
+            try {
+                offscreenCtx.drawImage(videoCtx.canvas, searchX, searchY, searchW, searchH, 0, 0, scaledSearchW, scaledSearchH);
+            } catch(e) {
+                return;
+            }
+
+            const imgData = offscreenCtx.getImageData(0, 0, scaledSearchW, scaledSearchH);
+            const data = imgData.data;
+
+            // Pre-calculate grayscale array of the search area
+            const searchGray = new Float32Array(scaledSearchW * scaledSearchH);
+            for (let i = 0; i < data.length; i += 4) {
+                searchGray[i / 4] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            }
+
+            let bestCx = 0;
+            let bestCy = 0;
+            let minSSD = Infinity;
+
+            const limitY = scaledSearchH - targetH;
+            const limitX = scaledSearchW - targetW;
+
+            // Pure in-memory sliding SSD matcher
+            for (let cy = 0; cy <= limitY; cy++) {
+                for (let cx = 0; cx <= limitX; cx++) {
+                    let ssd = 0;
+                    
+                    for (let ty = 0; ty < targetH; ty++) {
+                        const searchRowOffset = (cy + ty) * scaledSearchW + cx;
+                        const templateRowOffset = ty * targetW;
+                        
+                        for (let tx = 0; tx < targetW; tx++) {
+                            const diff = templateGray[templateRowOffset + tx] - searchGray[searchRowOffset + tx];
+                            ssd += diff * diff;
+                        }
+                    }
+
+                    if (ssd < minSSD) {
+                        minSSD = ssd;
+                        bestCx = cx;
+                        bestCy = cy;
+                    }
+                }
+            }
+
+            // Map back to original coordinate system
+            const bestX_orig = searchX + (bestCx / scaleX);
+            const bestY_orig = searchY + (bestCy / scaleY);
+
+            manualTrackBox.x = bestX_orig;
+            manualTrackBox.y = bestY_orig;
+
+            // Update template slightly (5% blending) to handle changing shapes/lighting
+            const bestIdxOffset = bestCy * scaledSearchW + bestCx;
+            for (let ty = 0; ty < targetH; ty++) {
+                const searchRowOffset = (bestCy + ty) * scaledSearchW + bestCx;
+                const templateRowOffset = ty * targetW;
+                for (let tx = 0; tx < targetW; tx++) {
+                    const templateIdx = templateRowOffset + tx;
+                    const searchIdx = searchRowOffset + tx;
+                    templateGray[templateIdx] = templateGray[templateIdx] * 0.95 + searchGray[searchIdx] * 0.05;
+                }
+            }
+        }
+
+        function setupManualDrawing() {
+            const clearBtn = document.getElementById('clear-manual-track-btn');
+
+            clearBtn.addEventListener('click', () => {
+                manualTrackBox = null;
+                clearBtn.style.display = 'none';
+                log("Manual tracking cleared.");
+            });
+
+            function onStartDraw(e) {
+                if (e.button !== undefined && e.button !== 0) return;
+                
+                const coords = getCanvasCoords(e, canvasLeft);
+                isDrawingBox = true;
+                startX = coords.x;
+                startY = coords.y;
+                currentDrawBox = { x: startX, y: startY, w: 0, h: 0 };
+            }
+
+            function onDrawing(e) {
+                if (!isDrawingBox) return;
+                const coords = getCanvasCoords(e, canvasLeft);
+
+                const curX = Math.max(0, Math.min(canvasLeft.width, coords.x));
+                const curY = Math.max(0, Math.min(canvasLeft.height, coords.y));
+
+                currentDrawBox.x = Math.min(startX, curX);
+                currentDrawBox.y = Math.min(startY, curY);
+                currentDrawBox.w = Math.abs(startX - curX);
+                currentDrawBox.h = Math.abs(startY - curY);
+            }
+
+            // Downsample template to 16x16 on drawing end for super-fast initialization
+            function onEndDraw(e) {
+                if (!isDrawingBox) return;
+                isDrawingBox = false;
+
+                if (currentDrawBox && currentDrawBox.w > 10 && currentDrawBox.h > 10) {
+                    const targetW = 16;
+                    const targetH = 16;
+
+                    const gray = getGrayPixels(ctxLeft, currentDrawBox.x, currentDrawBox.y, currentDrawBox.w, currentDrawBox.h, targetW, targetH);
+
+                    manualTrackBox = {
+                        x: currentDrawBox.x,
+                        y: currentDrawBox.y,
+                        w: currentDrawBox.w,
+                        h: currentDrawBox.h,
+                        templateGray: gray
+                    };
+
+                    clearBtn.style.display = 'block';
+                    log(`Manual tracking started: [${Math.round(manualTrackBox.x)}, ${Math.round(manualTrackBox.y)}, ${Math.round(manualTrackBox.w)}x${Math.round(manualTrackBox.h)}]`);
+                }
+                currentDrawBox = null;
+            }
+
+            // Mouse events on canvasLeft
+            canvasLeft.addEventListener('mousedown', onStartDraw);
+            window.addEventListener('mousemove', onDrawing);
+            window.addEventListener('mouseup', onEndDraw);
+
+            // Touch events on canvasLeft
+            canvasLeft.addEventListener('touchstart', onStartDraw, { passive: true });
+            window.addEventListener('touchmove', onDrawing, { passive: true });
+            window.addEventListener('touchend', onEndDraw, { passive: true });
+        }
+
+        const commonTargets = [
+            { id: 'drone', name: '🛸 Drone (無人機/鳥/風箏)' },
+            { id: 'person', name: '👤 Person (人)' },
+            { id: 'car', name: '🚗 Car (汽車)' },
+            { id: 'motorcycle', name: '🏍️ Motorcycle (機車)' },
+            { id: 'bicycle', name: '🚲 Bicycle (自行車)' },
+            { id: 'dog', name: '🐕 Dog (狗)' },
+            { id: 'cat', name: '🐈 Cat (貓)' },
+            { id: 'cell phone', name: '📱 Cell Phone (手機)' },
+            { id: 'cup', name: '🥛 Cup (杯子)' },
+            { id: 'bottle', name: '🧴 Bottle (瓶子)' },
+            { id: 'backpack', name: '🎒 Backpack (雙肩包)' },
+            { id: 'handbag', name: '👜 Handbag (手提包)' },
+            { id: 'suitcase', name: '🧳 Suitcase (行李箱)' },
+            { id: 'traffic light', name: '🚦 Traffic Light (紅綠燈)' }
+        ];
+
+        function initTrackingTargets() {
+            const container = document.getElementById('target-checkboxes-container');
+            const selectAllBtn = document.getElementById('select-all-targets');
+
+            commonTargets.forEach(target => {
+                const label = document.createElement('label');
+                label.style.display = 'flex';
+                label.style.alignItems = 'center';
+                label.style.gap = '8px';
+                label.style.cursor = 'pointer';
+                label.style.padding = '4px 0';
+                label.style.borderBottom = '1px dashed rgba(255, 255, 255, 0.05)';
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.id = `target-${target.id}`;
+                input.checked = true;
+                input.style.accentColor = 'var(--primary)';
+                input.style.width = '15px';
+                input.style.height = '15px';
+
+                input.addEventListener('change', () => {
+                    if (!input.checked) {
+                        selectAllBtn.checked = false;
+                    } else {
+                        const allChecked = commonTargets.every(t => {
+                            const cb = document.getElementById(`target-${t.id}`);
+                            return cb && cb.checked;
+                        });
+                        if (allChecked) {
+                            selectAllBtn.checked = true;
+                        }
+                    }
+                    log(`Tracking target: ${target.id} set to ${input.checked}`);
+                });
+
+                label.appendChild(input);
+                label.appendChild(document.createTextNode(target.name));
+                container.appendChild(label);
+            });
+
+            selectAllBtn.addEventListener('change', () => {
+                commonTargets.forEach(target => {
+                    const cb = document.getElementById(`target-${target.id}`);
+                    if (cb) {
+                        cb.checked = selectAllBtn.checked;
+                    }
+                });
+                log(`All tracking targets set to: ${selectAllBtn.checked}`);
+            });
+        }
+
         function renderCanvas(predictions, currentFps) {
             const videoWidth = video.videoWidth;
             const videoHeight = video.videoHeight;
@@ -619,11 +917,34 @@
                 canvasRight.height = videoHeight;
             }
 
+            // Draw video to canvasLeft first so the tracker can read the current frame
+            ctxLeft.drawImage(video, 0, 0, canvasLeft.width, canvasLeft.height);
+
+            // Update manual tracking target position
+            if (manualTrackBox) {
+                updateManualTracker(ctxLeft);
+            }
+
+            // Filter predictions based on confidence threshold and selected tracking targets
+            const filteredPredictions = predictions.filter(p => {
+                if (p.score < detectionThreshold) return false;
+
+                let className = p.class;
+                if (className === "airplane" || className === "bird" || className === "kite") {
+                    className = "drone";
+                }
+
+                const selectAll = document.getElementById('select-all-targets').checked;
+                if (selectAll) return true;
+
+                const checkbox = document.getElementById(`target-${className}`);
+                return checkbox && checkbox.checked;
+            });
+
             function drawScene(ctx, canvas) {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                predictions = predictions.filter(p => p.score >= detectionThreshold);
-                predictions.forEach((prediction) => {
+                filteredPredictions.forEach((prediction) => {
                     const [x, y, width, height] = prediction.bbox;
 
                     let className = prediction.class;
@@ -648,6 +969,42 @@
                     ctx.fillText(text, x + 6, (y - 30 > 0 ? y - 30 : y) + 22);
                 });
 
+                // Draw manual tracker box
+                if (manualTrackBox) {
+                    ctx.shadowColor = "black";
+                    ctx.shadowBlur = 6;
+                    ctx.strokeStyle = "#fe4066"; // Pink/Red manual box color
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(manualTrackBox.x, manualTrackBox.y, manualTrackBox.w, manualTrackBox.h);
+                    
+                    // Draw a small crosshair target in center
+                    const cx = manualTrackBox.x + manualTrackBox.w / 2;
+                    const cy = manualTrackBox.y + manualTrackBox.h / 2;
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy);
+                    ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10);
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+
+                    ctx.fillStyle = "#fe4066";
+                    const label = "LOCKED TARGET";
+                    ctx.font = "bold 16px Outfit, sans-serif";
+                    const labelW = ctx.measureText(label).width;
+                    ctx.fillRect(manualTrackBox.x, manualTrackBox.y - 30 > 0 ? manualTrackBox.y - 30 : manualTrackBox.y, labelW + 12, 30);
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillText(label, manualTrackBox.x + 6, (manualTrackBox.y - 30 > 0 ? manualTrackBox.y - 30 : manualTrackBox.y) + 22);
+                }
+
+                // Draw active drawing box preview
+                if (isDrawingBox && currentDrawBox) {
+                    ctx.strokeStyle = "rgba(254, 64, 102, 0.8)";
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeRect(currentDrawBox.x, currentDrawBox.y, currentDrawBox.w, currentDrawBox.h);
+                    ctx.setLineDash([]);
+                }
+
                 if (currentFps !== undefined) {
                     ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
                     ctx.fillRect(10, 10, 90, 30);
@@ -666,10 +1023,11 @@
 
             // UI Feedback
             const badge = document.getElementById('ai-status');
-            if (predictions.length > 0) {
+            const totalDetections = filteredPredictions.length + (manualTrackBox ? 1 : 0);
+            if (totalDetections > 0) {
                 badge.style.color = '#fe4066';
                 badge.querySelector('.pulse').style.background = '#fe4066';
-                document.getElementById('detection-msg').innerText = `Detected ${predictions.length} object(s)`;
+                document.getElementById('detection-msg').innerText = `Detected ${totalDetections} object(s)`;
             } else {
                 badge.style.color = '#5ddcff';
                 badge.querySelector('.pulse').style.background = '#5ddcff';
@@ -689,6 +1047,8 @@
             log("Model Ready.");
 
             await getCameras();
+            initTrackingTargets();
+            setupManualDrawing();
 
             document.body.classList.add('loaded');
         }
