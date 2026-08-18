@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>靶紙射擊偵測與計分系統</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background:#f5f5f5; }
+        #videoContainer, #canvasContainer { margin:10px; display:inline-block; vertical-align:top; }
+        video, canvas { border:2px solid #333; background:#000; }
+        #score { font-size:2em; margin-top:10px; color:#2c3e50; }
+        button { padding:10px 20px; font-size:1em; margin:5px; }
+    </style>
+</head>
+<body>
+    <h1>靶紙射擊偵測與計分系統</h1>
+    <div>
+        <div id="videoContainer">
+            <video id="webcam" width="640" height="480" autoplay playsinline></video>
+        </div>
+        <div id="canvasContainer">
+            <canvas id="output" width="640" height="480"></canvas>
+        </div>
+    </div>
+    <div>
+        <button id="startBtn">啟動偵測</button>
+        <button id="stopBtn" disabled>停止偵測</button>
+        <div id="score">目前分數: 0</div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('output');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const scoreDiv = document.getElementById('score');
+
+        let score = 0;
+        let streaming = false;
+        let videoStream = null;
+
+        // 靶心座標 (假設靶紙置中，半徑 200px)
+        const targetCenter = { x: canvas.width / 2, y: canvas.height / 2 };
+        const targetRadius = 200;
+
+        // 簡單的彈孔偵測：根據顏色差異 (假設彈孔為黑色點)
+        function detectBulletHoles(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            let holes = [];
+
+            // 遍歷每個像素，找出暗色點 (R,G,B < 50) 且鄰域中亮色 (R,G,B > 200) 為邊緣
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const i = (y * width + x) * 4;
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    if (r < 50 && g < 50 && b < 50) {
+                        // 檢查鄰域是否有亮色
+                        let brightNeighbor = false;
+                        for (let dy = -2; dy <= 2; dy++) {
+                            for (let dx = -2; dx <= 2; dx++) {
+                                const ni = ((y + dy) * width + (x + dx)) * 4;
+                                const nr = data[ni];
+                                const ng = data[ni + 1];
+                                const nb = data[ni + 2];
+                                if (nr > 200 && ng > 200 && nb > 200) {
+                                    brightNeighbor = true;
+                                    break;
+                                }
+                            }
+                            if (brightNeighbor) break;
+                        }
+                        if (brightNeighbor) {
+                            holes.push({ x, y });
+                        }
+                    }
+                }
+            }
+            return holes;
+        }
+
+        // 計算分數：根據彈孔距離靶心的距離
+        function calculateScore(hole) {
+            const dx = hole.x - targetCenter.x;
+            const dy = hole.y - targetCenter.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            // 環形得分：中心 10分，每環減 1分，最外環 0分
+            const scoreRing = Math.max(0, 10 - Math.floor(distance / (targetRadius / 10)));
+            return scoreRing;
+        }
+
+        function processFrame() {
+            if (!streaming) return;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const holes = detectBulletHoles(imageData);
+            let frameScore = 0;
+            holes.forEach(hole => {
+                frameScore += calculateScore(hole);
+                // 在畫布上標記偵測到的彈孔
+                ctx.beginPath();
+                ctx.arc(hole.x, hole.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,0,0,0.5)';
+                ctx.fill();
+            });
+            if (holes.length > 0) {
+                score += frameScore;
+                scoreDiv.textContent = `目前分數: ${score}`;
+            }
+            requestAnimationFrame(processFrame);
+        }
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = videoStream;
+                streaming = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                requestAnimationFrame(processFrame);
+            } catch (err) {
+                alert('無法存取攝影機: ' + err);
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            streaming = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+    </script>
+</body>
+</html>
