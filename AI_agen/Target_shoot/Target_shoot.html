@@ -8,6 +8,11 @@
         #videoContainer, #canvasContainer { margin:10px; display:inline-block; vertical-align:top; }
         video, canvas { border:2px solid #333; background:#000; }
         #score { font-size:2em; margin-top:10px; color:#2c3e50; }
+        #shotSummary { margin-top:8px; font-size:1.05em; color:#34495e; }
+        #shotList { margin-top:10px; max-width:640px; border-collapse:collapse; background:#fff; }
+        #shotList th, #shotList td { border:1px solid #ddd; padding:6px 8px; text-align:center; }
+        #shotList th { background:#2c3e50; color:#fff; }
+        #shotList tbody tr:nth-child(even) { background:#f2f6f8; }
         button { padding:10px 20px; font-size:1em; margin:5px; }
         #controls { margin-top:10px; }
         #controls div { margin:5px 0; }
@@ -40,6 +45,13 @@
         <button id="exportBtn" style="display:none;">匯出紀錄</button>
         <button id="saveImgBtn" style="display:none;">儲存影像</button>
         <div id="score">目前分數: 0</div>
+        <div id="shotSummary">彈孔數: 0｜平均分數: 0.0</div>
+        <table id="shotList" style="display:none;">
+            <thead>
+                <tr><th>序號</th><th>X</th><th>Y</th><th>分數</th><th>時間</th></tr>
+            </thead>
+            <tbody id="shotListBody"></tbody>
+        </table>
     </div>
     <div id="controls" style="display:none;">
         <div>
@@ -116,6 +128,9 @@
         const saveImgBtn = document.getElementById('saveImgBtn');
         const scoreDiv = document.getElementById('score');
         const controlsDiv = document.getElementById('controls');
+        const shotSummaryDiv = document.getElementById('shotSummary');
+        const shotList = document.getElementById('shotList');
+        const shotListBody = document.getElementById('shotListBody');
         const radiusSlider = document.getElementById('radiusSlider');
         const radiusValue = document.getElementById('radiusValue');
         const centerXSpan = document.getElementById('centerX');
@@ -136,7 +151,7 @@
         let streaming = false;
         let videoStream = null;
         let calibrating = false;
-        let detectedHolesLog = []; // {x,y,score,timestamp}
+        let detectedHolesLog = []; // {shotNumber,x,y,score,timestamp}
         let detectedHolesSet = []; // for duplicate filtering
 
         // 靶心與半徑
@@ -348,6 +363,55 @@
             }
         }
 
+        function drawTargetOverlay() {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+            ctx.lineWidth = 1;
+            for (let ring = 1; ring <= 10; ring++) {
+                ctx.beginPath();
+                ctx.arc(targetCenter.x, targetCenter.y, ring * (targetRadius / 10), 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = 'rgba(255,255,0,0.8)';
+            ctx.beginPath();
+            ctx.moveTo(targetCenter.x - 10, targetCenter.y);
+            ctx.lineTo(targetCenter.x + 10, targetCenter.y);
+            ctx.moveTo(targetCenter.x, targetCenter.y - 10);
+            ctx.lineTo(targetCenter.x, targetCenter.y + 10);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawShotMarkers() {
+            detectedHolesLog.forEach(entry => {
+                ctx.beginPath();
+                ctx.arc(entry.x, entry.y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,0,0,0.55)';
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = '#ffff00';
+                ctx.font = 'bold 14px Arial';
+                ctx.fillText(`#${entry.shotNumber}`, entry.x + 10, entry.y - 10);
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Arial';
+                ctx.fillText(`${entry.score}分`, entry.x + 10, entry.y + 6);
+            });
+        }
+
+        function updateScoreboard() {
+            const shotCount = detectedHolesLog.length;
+            const average = shotCount ? (score / shotCount).toFixed(1) : '0.0';
+            scoreDiv.textContent = `目前分數: ${score}`;
+            shotSummaryDiv.textContent = `彈孔數: ${shotCount}｜平均分數: ${average}`;
+            shotList.style.display = shotCount ? 'table' : 'none';
+            shotListBody.innerHTML = detectedHolesLog.map(entry => {
+                const time = new Date(entry.timestamp).toLocaleTimeString('zh-TW', { hour12: false });
+                return `<tr><td>${entry.shotNumber}</td><td>${entry.x}</td><td>${entry.y}</td><td>${entry.score}</td><td>${time}</td></tr>`;
+            }).join('');
+        }
+
         function calculateScore(hole) {
             const dx = hole.x - targetCenter.x;
             const dy = hole.y - targetCenter.y;
@@ -359,18 +423,6 @@
         async function processFrame() {
             if (!streaming) return;
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            // 如果正在選取區域，畫出矩形
-            if (selecting) {
-                const scaleX = canvas.width / video.videoWidth;
-                const scaleY = canvas.height / video.videoHeight;
-                const sx = startX * scaleX;
-                const sy = startY * scaleY;
-                const ex = endX * scaleX;
-                const ey = endY * scaleY;
-                ctx.strokeStyle = 'lime';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(sx, sy, ex - sx, ey - sy);
-            }
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             let holes = [];
             if (detectionMethod === 'dl') {
@@ -392,14 +444,8 @@
             newHoles.forEach(hole => {
                 const holeScore = calculateScore(hole);
                 frameScore += holeScore;
-                ctx.beginPath();
-                ctx.arc(hole.x, hole.y, 5, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(255,0,0,0.5)';
-                ctx.fill();
-                ctx.fillStyle = '#fff';
-                ctx.font = '12px Arial';
-                ctx.fillText(holeScore, hole.x + 8, hole.y - 8);
                 detectedHolesLog.push({
+                    shotNumber: detectedHolesLog.length + 1,
                     x: Math.round(hole.x),
                     y: Math.round(hole.y),
                     score: holeScore,
@@ -409,9 +455,24 @@
 
             if (newHoles.length > 0) {
                 score += frameScore;
-                scoreDiv.textContent = `目前分數: ${score}`;
                 exportBtn.style.display = 'inline-block';
                 saveImgBtn.style.display = 'inline-block';
+                updateScoreboard();
+            }
+
+            drawTargetOverlay();
+            drawShotMarkers();
+            // 如果正在選取區域，畫出矩形
+            if (selecting) {
+                const scaleX = canvas.width / video.videoWidth;
+                const scaleY = canvas.height / video.videoHeight;
+                const sx = startX * scaleX;
+                const sy = startY * scaleY;
+                const ex = endX * scaleX;
+                const ey = endY * scaleY;
+                ctx.strokeStyle = 'lime';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(sx, sy, ex - sx, ey - sy);
             }
 
             requestAnimationFrame(processFrame);
@@ -465,7 +526,7 @@
             score = 0;
             detectedHolesLog = [];
             detectedHolesSet = [];
-            scoreDiv.textContent = `目前分數: ${score}`;
+            updateScoreboard();
             exportBtn.style.display = 'none';
             saveImgBtn.style.display = 'none';
         });
@@ -605,6 +666,10 @@
         });
 
         function capturePatch(x, y, w, h) {
+            x = Math.round(x);
+            y = Math.round(y);
+            w = Math.max(1, Math.round(w));
+            h = Math.max(1, Math.round(h));
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = video.videoWidth;
             tempCanvas.height = video.videoHeight;
@@ -648,8 +713,9 @@
                 alert('目前沒有可匯出的紀錄');
                 return;
             }
-            const header = ['X座標', 'Y座標', '分數', '時間戳'];
+            const header = ['序號', 'X座標', 'Y座標', '分數', '時間戳'];
             const rows = detectedHolesLog.map(entry => [
+                entry.shotNumber,
                 entry.x,
                 entry.y,
                 entry.score,
@@ -685,6 +751,7 @@
 
         controlsDiv.style.display = 'none';
         updateSampleCount();
+        updateScoreboard();
     </script>
 </body>
 </html>
