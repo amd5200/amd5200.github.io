@@ -6,6 +6,8 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background:#f5f5f5; }
         #videoContainer, #canvasContainer { margin:10px; display:inline-block; vertical-align:top; }
+        #videoContainer { width:640px; height:480px; overflow:hidden; background:#000; }
+        #webcam { transform-origin:center center; }
         video, canvas { border:2px solid #333; background:#000; }
         #score { font-size:2em; margin-top:10px; color:#2c3e50; }
         #shotSummary { margin-top:8px; font-size:1.05em; color:#34495e; }
@@ -39,8 +41,9 @@
         </div>
     </div>
     <div>
-        <button id="startBtn">啟動偵測</button>
-        <button id="stopBtn" disabled>停止偵測</button>
+        <button id="startBtn">開啟相機</button>
+        <button id="detectToggleBtn" disabled>開始彈孔偵測</button>
+        <button id="stopBtn" disabled>關閉相機</button>
         <button id="calibBtn">校正靶位</button>
         <button id="exportBtn" style="display:none;">匯出紀錄</button>
         <button id="saveImgBtn" style="display:none;">儲存影像</button>
@@ -54,6 +57,12 @@
         </table>
     </div>
     <div id="controls" style="display:none;">
+        <div>
+            <label for="zoomSlider">相機望遠 Zoom: </label>
+            <input type="range" id="zoomSlider" min="1" max="4" step="0.1" value="1" disabled>
+            <span id="zoomValue">1.0</span>x
+            <span id="zoomSupportInfo" class="dl-status">請先開啟相機</span>
+        </div>
         <div>
             <label for="radiusSlider">靶心半徑: </label>
             <input type="range" id="radiusSlider" min="50" max="300" value="200">
@@ -123,6 +132,7 @@
         const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
+        const detectToggleBtn = document.getElementById('detectToggleBtn');
         const calibBtn = document.getElementById('calibBtn');
         const exportBtn = document.getElementById('exportBtn');
         const saveImgBtn = document.getElementById('saveImgBtn');
@@ -146,10 +156,17 @@
         const sampleBtn = document.getElementById('sampleBtn');
         const clearSamplesBtn = document.getElementById('clearSamplesBtn');
         const sampleInfoDiv = document.getElementById('sampleInfo');
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomValue = document.getElementById('zoomValue');
+        const zoomSupportInfo = document.getElementById('zoomSupportInfo');
 
         let score = 0;
         let streaming = false;
+        let detectionActive = false;
         let videoStream = null;
+        let cameraZoom = 1;
+        let zoomTrack = null;
+        let opticalZoomSupported = false;
         let calibrating = false;
         let detectedHolesLog = []; // {shotNumber,x,y,score,timestamp}
         let detectedHolesSet = []; // for duplicate filtering
@@ -422,42 +439,45 @@
 
         async function processFrame() {
             if (!streaming) return;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let holes = [];
-            if (detectionMethod === 'dl') {
-                holes = await detectBulletHoles_async(imageData);
-            } else {
-                holes = detectBulletHoles(imageData);
-            }
+            drawZoomedVideoFrame();
 
-            const newHoles = [];
-            holes.forEach(hole => {
-                const isDuplicate = detectedHolesSet.some(existing => isSameHole(hole, existing));
-                if (!isDuplicate) {
-                    newHoles.push(hole);
-                    detectedHolesSet.push(hole);
+            if (detectionActive) {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                let holes = [];
+                if (detectionMethod === 'dl') {
+                    holes = await detectBulletHoles_async(imageData);
+                } else {
+                    holes = detectBulletHoles(imageData);
                 }
-            });
 
-            let frameScore = 0;
-            newHoles.forEach(hole => {
-                const holeScore = calculateScore(hole);
-                frameScore += holeScore;
-                detectedHolesLog.push({
-                    shotNumber: detectedHolesLog.length + 1,
-                    x: Math.round(hole.x),
-                    y: Math.round(hole.y),
-                    score: holeScore,
-                    timestamp: new Date().toISOString()
+                const newHoles = [];
+                holes.forEach(hole => {
+                    const isDuplicate = detectedHolesSet.some(existing => isSameHole(hole, existing));
+                    if (!isDuplicate) {
+                        newHoles.push(hole);
+                        detectedHolesSet.push(hole);
+                    }
                 });
-            });
 
-            if (newHoles.length > 0) {
-                score += frameScore;
-                exportBtn.style.display = 'inline-block';
-                saveImgBtn.style.display = 'inline-block';
-                updateScoreboard();
+                let frameScore = 0;
+                newHoles.forEach(hole => {
+                    const holeScore = calculateScore(hole);
+                    frameScore += holeScore;
+                    detectedHolesLog.push({
+                        shotNumber: detectedHolesLog.length + 1,
+                        x: Math.round(hole.x),
+                        y: Math.round(hole.y),
+                        score: holeScore,
+                        timestamp: new Date().toISOString()
+                    });
+                });
+
+                if (newHoles.length > 0) {
+                    score += frameScore;
+                    exportBtn.style.display = 'inline-block';
+                    saveImgBtn.style.display = 'inline-block';
+                    updateScoreboard();
+                }
             }
 
             drawTargetOverlay();
@@ -476,6 +496,65 @@
             }
 
             requestAnimationFrame(processFrame);
+        }
+
+
+        function drawZoomedVideoFrame() {
+            const sourceWidth = video.videoWidth || canvas.width;
+            const sourceHeight = video.videoHeight || canvas.height;
+            const zoom = opticalZoomSupported ? 1 : Math.max(1, cameraZoom);
+            const cropWidth = sourceWidth / zoom;
+            const cropHeight = sourceHeight / zoom;
+            const sx = (sourceWidth - cropWidth) / 2;
+            const sy = (sourceHeight - cropHeight) / 2;
+            ctx.drawImage(video, sx, sy, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+        }
+
+        function updateVideoZoomPreview() {
+            video.style.transform = opticalZoomSupported ? 'scale(1)' : `scale(${cameraZoom})`;
+            zoomValue.textContent = cameraZoom.toFixed(1);
+        }
+
+        async function applyCameraZoom(value) {
+            cameraZoom = parseFloat(value);
+            updateVideoZoomPreview();
+            if (opticalZoomSupported && zoomTrack) {
+                try {
+                    await zoomTrack.applyConstraints({ advanced: [{ zoom: cameraZoom }] });
+                    zoomSupportInfo.textContent = '使用硬體光學/數位 zoom；畫布同步望遠';
+                } catch (err) {
+                    console.warn('Unable to apply camera zoom constraint:', err);
+                    opticalZoomSupported = false;
+                    updateVideoZoomPreview();
+                    zoomSupportInfo.textContent = '此裝置無法套用硬體 zoom，改用畫面裁切望遠';
+                }
+            }
+        }
+
+        function setupZoomControl() {
+            zoomTrack = videoStream ? videoStream.getVideoTracks()[0] : null;
+            opticalZoomSupported = false;
+            zoomSlider.disabled = false;
+            zoomSlider.min = '1';
+            zoomSlider.max = '4';
+            zoomSlider.step = '0.1';
+            if (zoomTrack && typeof zoomTrack.getCapabilities === 'function') {
+                const capabilities = zoomTrack.getCapabilities();
+                if (capabilities.zoom) {
+                    opticalZoomSupported = true;
+                    zoomSlider.min = capabilities.zoom.min;
+                    zoomSlider.max = capabilities.zoom.max;
+                    zoomSlider.step = capabilities.zoom.step || 0.1;
+                    zoomSupportInfo.textContent = '支援硬體 zoom，可先望遠確認靶紙再開始偵測';
+                } else {
+                    zoomSupportInfo.textContent = '瀏覽器/相機未提供硬體 zoom，使用畫面裁切望遠';
+                }
+            } else {
+                zoomSupportInfo.textContent = '瀏覽器未提供 zoom 能力資訊，使用畫面裁切望遠';
+            }
+            cameraZoom = parseFloat(zoomSlider.min) || 1;
+            zoomSlider.value = cameraZoom;
+            updateVideoZoomPreview();
         }
 
         // 載入 coco-ssd 模型
@@ -498,30 +577,53 @@
                 videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 video.srcObject = videoStream;
                 streaming = true;
+                detectionActive = false;
                 startBtn.disabled = true;
+                detectToggleBtn.disabled = false;
+                detectToggleBtn.textContent = '開始彈孔偵測';
                 stopBtn.disabled = false;
                 calibBtn.disabled = true;
+                controlsDiv.style.display = 'block';
                 exportBtn.style.display = 'none';
                 saveImgBtn.style.display = 'none';
-                // 若切換到 DL 模式，嘗試載入模型
-                if (methodSelect.value === 'dl' && !modelReady) {
-                    await loadModel();
-                }
+                setupZoomControl();
                 requestAnimationFrame(processFrame);
             } catch (err) {
                 alert('無法存取攝影機: ' + err);
             }
         });
 
+        detectToggleBtn.addEventListener('click', async () => {
+            detectionActive = !detectionActive;
+            detectToggleBtn.textContent = detectionActive ? '暫停彈孔偵測' : '開始彈孔偵測';
+            if (detectionActive && methodSelect.value === 'dl' && !modelReady) {
+                await loadModel();
+            }
+        });
+
+        zoomSlider.addEventListener('input', () => {
+            applyCameraZoom(zoomSlider.value);
+        });
+
         stopBtn.addEventListener('click', () => {
             streaming = false;
+            detectionActive = false;
             startBtn.disabled = false;
+            detectToggleBtn.disabled = true;
+            detectToggleBtn.textContent = '開始彈孔偵測';
             stopBtn.disabled = true;
             calibBtn.disabled = false;
             if (videoStream) {
                 videoStream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
             }
+            zoomTrack = null;
+            opticalZoomSupported = false;
+            cameraZoom = 1;
+            zoomSlider.value = 1;
+            zoomSlider.disabled = true;
+            zoomSupportInfo.textContent = '請先開啟相機';
+            updateVideoZoomPreview();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             score = 0;
             detectedHolesLog = [];
