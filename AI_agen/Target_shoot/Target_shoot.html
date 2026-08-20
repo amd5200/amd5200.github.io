@@ -6,8 +6,8 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background:#f5f5f5; }
         #videoContainer, #canvasContainer { margin:10px; display:inline-block; vertical-align:top; }
-        #videoContainer { width:640px; height:480px; overflow:hidden; background:#000; }
-        #webcam { transform-origin:center center; }
+        #videoContainer { width:640px; height:480px; overflow:hidden; background:#000; position:relative; }
+        #webcam { transform-origin:center center; width:640px; height:480px; object-fit:contain; }
         video, canvas { border:2px solid #333; background:#000; }
         #score { font-size:2em; margin-top:10px; color:#2c3e50; }
         #shotSummary { margin-top:8px; font-size:1.05em; color:#34495e; }
@@ -15,26 +15,41 @@
         #shotList th, #shotList td { border:1px solid #ddd; padding:6px 8px; text-align:center; }
         #shotList th { background:#2c3e50; color:#fff; }
         #shotList tbody tr:nth-child(even) { background:#f2f6f8; }
-        button { padding:10px 20px; font-size:1em; margin:5px; }
+        button { padding:10px 20px; font-size:1em; margin:5px; cursor:pointer; }
         #controls { margin-top:10px; }
         #controls div { margin:5px 0; }
         label { margin-right:5px; }
         input[type=range] { width:200px; vertical-align:middle; }
-        #exportBtn { margin-top:10px; }
-        #saveImgBtn { margin-top:10px; }
-        select { margin-left:5px; }
-        .dl-status { font-size:0.9em; color:#555; margin-top:5px; }
-        #sampleBtn { background:#4CAF50; color:white; }
-        #sampleBtn.active { background:#45a049; }
-        #clearSamplesBtn { background:#f44336; color:white; margin-left:5px; }
-        #sampleInfo { font-size:0.9em; color:#333; margin-top:5px; }
+        #exportBtn, #saveImgBtn, #bgCapBtn, #uploadBtn { margin-top:10px; }
+        .info-status { font-size:0.9em; color:#555; margin-top:5px; }
+        #bgCapBtn { background:#008CBA; color:white; }
+        #uploadBtn { background:#8e44ad; color:white; }
+        .protocol-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            padding: 12px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            max-width: 1290px;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body>
     <h1>靶紙射擊偵測與計分系統</h1>
+
+    <div id="fileProtocolWarning" class="protocol-warning" style="display:none;">
+        ⚠️ <strong>瀏覽器安全性限制提醒：</strong><br>
+        您目前直接以檔案方式 (<code>file://</code>) 開啟此頁面。Google Chrome、Microsoft Edge 等現代瀏覽器基於資安規定，<strong>禁止在 file:// 協定開啟實體相機</strong>。<br>
+        👉 <strong>解決方法：</strong><br>
+        1. 請執行資料夾中的 <code>start_server.bat</code> 啟動本地伺服器，並以 <code>http://localhost:8000/Target_shoot.html</code> 開啟。<br>
+        2. 或點擊下方的「<strong>載入圖片／影片檔案</strong>」按鈕，直接選擇靶紙影片或照片進行測試。
+    </div>
+
     <div>
         <div id="videoContainer">
-            <video id="webcam" width="640" height="480" autoplay playsinline></video>
+            <video id="webcam" width="640" height="480" autoplay playsinline muted></video>
         </div>
         <div id="canvasContainer">
             <canvas id="output" width="640" height="480"></canvas>
@@ -42,13 +57,17 @@
     </div>
     <div>
         <button id="startBtn">開啟相機</button>
+        <button id="uploadBtn">載入圖片／影片檔案</button>
+        <input type="file" id="fileInput" accept="image/*,video/*" style="display:none;">
+        <button id="bgCapBtn" disabled>擷取基準背景</button>
         <button id="detectToggleBtn" disabled>開始彈孔偵測</button>
-        <button id="stopBtn" disabled>關閉相機</button>
+        <button id="stopBtn" disabled>關閉／停止</button>
         <button id="calibBtn">校正靶位</button>
         <button id="exportBtn" style="display:none;">匯出紀錄</button>
         <button id="saveImgBtn" style="display:none;">儲存影像</button>
         <div id="score">目前分數: 0</div>
         <div id="shotSummary">彈孔數: 0｜平均分數: 0.0</div>
+        <div id="bgStatus" class="info-status">背景狀態: 尚未擷取基準背景</div>
         <table id="shotList" style="display:none;">
             <thead>
                 <tr><th>序號</th><th>X</th><th>Y</th><th>分數</th><th>時間</th></tr>
@@ -61,7 +80,7 @@
             <label for="zoomSlider">相機望遠 Zoom: </label>
             <input type="range" id="zoomSlider" min="1" max="4" step="0.1" value="1" disabled>
             <span id="zoomValue">1.0</span>x
-            <span id="zoomSupportInfo" class="dl-status">請先開啟相機</span>
+            <span id="zoomSupportInfo" class="info-status">請先開啟相機</span>
         </div>
         <div>
             <label for="radiusSlider">靶心半徑: </label>
@@ -72,9 +91,9 @@
             <label>目前靶心座標: (<span id="centerX">320</span>, <span id="centerY">240</span>)</label>
         </div>
         <div>
-            <label for="darkThresh">暗色門檻 (0-255): </label>
-            <input type="range" id="darkThresh" min="0" max="255" value="50">
-            <span id="darkThreshVal">50</span>
+            <label for="diffThresh">變動差異門檻 (0-255): </label>
+            <input type="range" id="diffThresh" min="5" max="200" value="35">
+            <span id="diffThreshVal">35</span>
         </div>
         <div>
             <label for="minArea">最小面積: </label>
@@ -86,52 +105,22 @@
             <input type="range" id="maxArea" min="50" max="2000" value="500">
             <span id="maxAreaVal">500</span> px²
         </div>
-        <div>
-            <label>偵測方法: </label>
-            <select id="methodSelect">
-                <option value="blob">連通元件 (Blob)</option>
-                <option value="template">模板匹配 (Template)</option>
-                <option value="dl">深度學習模型 (COCO-SSD)</option>
-            </select>
-        </div>
-        <div>
-            <button id="sampleBtn">加入樣本</button>
-            <button id="clearSamplesBtn">清除樣本</button>
-            <div id="sampleInfo">樣本數: 0</div>
-        </div>
-        <div id="dlStatus" class="dl-status">模型未載入</div>
     </div>
 
     <script>
-        // Load TensorFlow.js and coco-ssd model
-        const tfjsScript = document.createElement('script');
-        tfjsScript.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0';
-        tfjsScript.onload = () => {
-            console.log('TensorFlow.js loaded');
-            // Load coco-ssd after TF is ready
-            const cocoScript = document.createElement('script');
-            cocoScript.src = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.1.0';
-            cocoScript.onload = async () => {
-                console.log('coco-ssd loaded');
-                // Model will be loaded on demand when user selects DL
-            };
-            cocoScript.onerror = () => {
-                console.error('Failed to load coco-ssd');
-                dlStatusDiv.textContent = '模型載入失敗（coco-ssd）';
-            };
-            document.head.appendChild(cocoScript);
-        };
-        tfjsScript.onerror = () => {
-            console.error('Failed to load TensorFlow.js');
-            dlStatusDiv.textContent = '模型載入失敗（TensorFlow.js）';
-        };
-        document.head.appendChild(tfjsScript);
+        // 檢查協定並提示警告
+        if (window.location.protocol === 'file:') {
+            document.getElementById('fileProtocolWarning').style.display = 'block';
+        }
 
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('output');
         const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const bgCapBtn = document.getElementById('bgCapBtn');
         const detectToggleBtn = document.getElementById('detectToggleBtn');
         const calibBtn = document.getElementById('calibBtn');
         const exportBtn = document.getElementById('exportBtn');
@@ -139,23 +128,19 @@
         const scoreDiv = document.getElementById('score');
         const controlsDiv = document.getElementById('controls');
         const shotSummaryDiv = document.getElementById('shotSummary');
+        const bgStatusDiv = document.getElementById('bgStatus');
         const shotList = document.getElementById('shotList');
         const shotListBody = document.getElementById('shotListBody');
         const radiusSlider = document.getElementById('radiusSlider');
         const radiusValue = document.getElementById('radiusValue');
         const centerXSpan = document.getElementById('centerX');
         const centerYSpan = document.getElementById('centerY');
-        const darkThreshSlider = document.getElementById('darkThresh');
-        const darkThreshVal = document.getElementById('darkThreshVal');
+        const diffThreshSlider = document.getElementById('diffThresh');
+        const diffThreshVal = document.getElementById('diffThreshVal');
         const minAreaSlider = document.getElementById('minArea');
         const minAreaVal = document.getElementById('minAreaVal');
         const maxAreaSlider = document.getElementById('maxArea');
         const maxAreaVal = document.getElementById('maxAreaVal');
-        const methodSelect = document.getElementById('methodSelect');
-        const dlStatusDiv = document.getElementById('dlStatus');
-        const sampleBtn = document.getElementById('sampleBtn');
-        const clearSamplesBtn = document.getElementById('clearSamplesBtn');
-        const sampleInfoDiv = document.getElementById('sampleInfo');
         const zoomSlider = document.getElementById('zoomSlider');
         const zoomValue = document.getElementById('zoomValue');
         const zoomSupportInfo = document.getElementById('zoomSupportInfo');
@@ -168,62 +153,31 @@
         let zoomTrack = null;
         let opticalZoomSupported = false;
         let calibrating = false;
-        let detectedHolesLog = []; // {shotNumber,x,y,score,timestamp}
-        let detectedHolesSet = []; // for duplicate filtering
+        let detectedHolesLog = [];
+        let detectedHolesSet = [];
+        let isImageMode = false;
+        let loadedImageObj = null;
 
         // 靶心與半徑
         let targetCenter = { x: canvas.width / 2, y: canvas.height / 2 };
         let targetRadius = 200;
 
         // 偵測參數
-        let darkThreshold = 50;
+        let diffThreshold = 35;
         let minArea = 10;
         let maxArea = 500;
-        let detectionMethod = 'blob'; // 'blob', 'template', 'dl'
-        let cocoModel = null; // coco-ssd model
-        let modelReady = false;
 
-        // === 樣本收集相關 ===
-        let samplingMode = false;
-        let selecting = false;
-        let startX = 0, startY = 0, endX = 0, endY = 0;
-        // 儲存所有可用的模板（內建 + 使用者加入）
-        // 每個模板結構: {width, height, data: Float32Array (已零均值、單位範數)}
-        const allTemplates = [];
+        // 基準背景數據
+        let bgImageData = null;
 
-        // 內建模板：建議半徑 10px 的深色圓形 (可自行調整)
-        function buildDefaultTemplate() {
-            const templateRadius = 10;
-            const templateSize = 2 * templateRadius + 1;
-            const template = new Float32Array(templateSize * templateSize);
-            let sum = 0;
-            let idx = 0;
-            for (let dy = -templateRadius; dy <= templateRadius; dy++) {
-                for (let dx = -templateRadius; dx <= templateRadius; dx++) {
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    const val = 1 - dist/templateRadius; // 1 at centre, 0 at edge
-                    template[idx] = val;
-                    sum += val;
-                    idx++;
-                }
-            }
-            const mean = sum / template.length;
-            for (let i = 0; i < template.length; i++) {
-                template[i] -= mean;
-            }
-            let norm = 0;
-            for (let i = 0; i < template.length; i++) {
-                norm += template[i] * template[i];
-            }
-            norm = Math.sqrt(norm);
-            if (norm === 0) norm = 1;
-            for (let i = 0; i < template.length; i++) {
-                template[i] /= norm;
-            }
-            return {width: templateSize, height: templateSize, data: template};
+        // 擷取基準背景
+        function captureBackground() {
+            if (!streaming && !isImageMode) return;
+            drawZoomedVideoFrame();
+            bgImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            bgStatusDiv.textContent = '背景狀態: 已於 ' + new Date().toLocaleTimeString('zh-TW', { hour12: false }) + ' 擷取基準背景';
+            bgStatusDiv.style.color = '#27ae60';
         }
-        // 加入內建模板
-        allTemplates.push(buildDefaultTemplate());
 
         // 判斷兩點是否同一彈孔
         function isSameHole(holeA, holeB, threshold = 15) {
@@ -232,11 +186,14 @@
             return Math.sqrt(dx*dx + dy*dy) < threshold;
         }
 
-        // Blob 偵測 (連通元件)
-        function detectBulletHoles_blob(imageData) {
-            const width = imageData.width;
-            const height = imageData.height;
-            const data = imageData.data;
+        // 背景變動差異偵測 (與基準背景比對)
+        function detectBulletHoles_bgDiff(currentImageData) {
+            if (!bgImageData) return [];
+
+            const width = currentImageData.width;
+            const height = currentImageData.height;
+            const currData = currentImageData.data;
+            const bgData = bgImageData.data;
             const visited = new Uint8Array(width * height);
             const holes = [];
 
@@ -244,41 +201,51 @@
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
-                    const i = idx(y, x);
-                    const r = data[i];
-                    const g = data[i + 1];
-                    const b = data[i + 2];
                     const vi = y * width + x;
                     if (visited[vi]) continue;
-                    if (r < darkThreshold && g < darkThreshold && b < darkThreshold) {
+
+                    const i = idx(y, x);
+                    const dr = Math.abs(currData[i] - bgData[i]);
+                    const dg = Math.abs(currData[i + 1] - bgData[i + 1]);
+                    const db = Math.abs(currData[i + 2] - bgData[i + 2]);
+                    const diff = (dr + dg + db) / 3;
+
+                    if (diff > diffThreshold) {
                         const stack = [[y, x]];
                         visited[vi] = 1;
                         let sumX = 0, sumY = 0, count = 0;
+
                         while (stack.length) {
                             const [cy, cx] = stack.pop();
                             sumX += cx;
                             sumY += cy;
                             count++;
+
                             const neighbours = [
                                 [cy - 1, cx],
                                 [cy + 1, cx],
                                 [cy, cx - 1],
                                 [cy, cx + 1]
                             ];
+
                             for (const [ny, nx] of neighbours) {
                                 if (ny < 0 || ny >= height || nx < 0 || nx >= width) continue;
-                                const nidx = idx(ny, nx);
                                 const nv = ny * width + nx;
                                 if (visited[nv]) continue;
-                                const nr = data[nidx];
-                                const ng = data[nidx + 1];
-                                const nb = data[nidx + 2];
-                                if (nr < darkThreshold && ng < darkThreshold && nb < darkThreshold) {
+
+                                const nidx = idx(ny, nx);
+                                const ndr = Math.abs(currData[nidx] - bgData[nidx]);
+                                const ndg = Math.abs(currData[nidx + 1] - bgData[nidx + 1]);
+                                const ndb = Math.abs(currData[nidx + 2] - bgData[nidx + 2]);
+                                const ndiff = (ndr + ndg + ndb) / 3;
+
+                                if (ndiff > diffThreshold) {
                                     visited[nv] = 1;
                                     stack.push([ny, nx]);
                                 }
                             }
                         }
+
                         if (count >= minArea && count <= maxArea) {
                             holes.push({ x: sumX / count, y: sumY / count });
                         }
@@ -286,98 +253,6 @@
                 }
             }
             return holes;
-        }
-
-        // 模板匹配偵測 (支援多個模板)
-        function detectBulletHoles_template(imageData) {
-            const width = imageData.width;
-            const height = imageData.height;
-            const data = imageData.data;
-            const holes = [];
-
-            // 轉換為灰度 (0-255)
-            const gray = new Uint8ClampedArray(width * height);
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                gray[i/4] = 0.2126*r + 0.7152*g + 0.0722*b; // 標準 luminance
-            }
-
-            // 對每個模板進行滑動窗口正規化互相關
-            allTemplates.forEach(tpl => {
-                const tplWidth = tpl.width;
-                const tplHeight = tpl.height;
-                const halfW = Math.floor(tplWidth / 2);
-                const halfH = Math.floor(tplHeight / 2);
-                // 已經是零均值單位範數的 tpl.data
-                for (let y = halfH; y < height - halfH; y++) {
-                    for (let x = halfW; x < width - halfW; x++) {
-                        let sum = 0;
-                        let idx = 0;
-                        for (let dy = -halfH; dy <= halfH; dy++) {
-                            for (let dx = -halfW; dx <= halfW; dx++) {
-                                const pos = ((y + dy) * width + (x + dx));
-                                const val = gray[pos];
-                                sum += val * tpl.data[idx];
-                                idx++;
-                            }
-                        }
-                        // 由於模板已正規化且窗口平均值為零？ 事實上我們需要將窗口也正規化。
-                        // 為簡化，我們只使用原始點積作為相似度分數，並設定經驗值門檻。
-                        // 這種做法在實際上可能會受亮度影響，但由於我們已對模板做零均值，且會用門檻過濾，仍可接受。
-                        if (sum > 0.4) { // 經驗值，可依實際調整
-                            holes.push({ x, y });
-                        }
-                    }
-                }
-            });
-            return holes;
-        }
-
-        // 深度學習偵測 (使用 coco-ssd 偵測物件，過濾小物件當作彈孔)
-        async function detectBulletHoles_dl(imageData) {
-            if (!cocoModel || !modelReady) return [];
-            // 轉換為 Tensor
-            const imgTensor = tf.browser.fromPixels(imageData);
-            // 模型會自動調整大小
-            const predictions = await cocoModel.detect(imgTensor);
-            imgTensor.dispose();
-            // predictions 是陣列，每個有 {bbox: [x, y, width, height], class, score}
-            // 我們假設彈孔為小物件，過濾掉太大的 bbox（例如面積超過一定比例）
-            const holes = [];
-            const imgWidth = imageData.width;
-            const imgHeight = imageData.height;
-            const maxBoxArea = 0.05 * imgWidth * imgHeight; // 例如佔畫面5%以下視為小物件
-            for (const pred of predictions) {
-                const [x, y, w, h] = pred.bbox;
-                const area = w * h;
-                if (area < maxBoxArea && pred.score > 0.4) { // 分數閾值可調
-                    // 取 bbox 中心作為彈孔座標
-                    holes.push({ x: x + w/2, y: y + h/2 });
-                }
-            }
-            return holes;
-        }
-
-        function detectBulletHoles(imageData) {
-            if (detectionMethod === 'blob') {
-                return detectBulletHoles_blob(imageData);
-            } else if (detectionMethod === 'template') {
-                return detectBulletHoles_template(imageData);
-            } else if (detectionMethod === 'dl') {
-                // 非同步，實際呼叫在 processFrame 中
-                return []; // placeholder
-            }
-            return [];
-        }
-
-        async function detectBulletHoles_async(imageData) {
-            if (detectionMethod === 'dl') {
-                return await detectBulletHoles_dl(imageData);
-            } else {
-                return detectBulletHoles(imageData);
-            }
         }
 
         function drawTargetOverlay() {
@@ -410,22 +285,22 @@
                 ctx.stroke();
                 ctx.fillStyle = '#ffff00';
                 ctx.font = 'bold 14px Arial';
-                ctx.fillText(`#${entry.shotNumber}`, entry.x + 10, entry.y - 10);
+                ctx.fillText('#' + entry.shotNumber, entry.x + 10, entry.y - 10);
                 ctx.fillStyle = '#fff';
                 ctx.font = '12px Arial';
-                ctx.fillText(`${entry.score}分`, entry.x + 10, entry.y + 6);
+                ctx.fillText(entry.score + '分', entry.x + 10, entry.y + 6);
             });
         }
 
         function updateScoreboard() {
             const shotCount = detectedHolesLog.length;
             const average = shotCount ? (score / shotCount).toFixed(1) : '0.0';
-            scoreDiv.textContent = `目前分數: ${score}`;
-            shotSummaryDiv.textContent = `彈孔數: ${shotCount}｜平均分數: ${average}`;
+            scoreDiv.textContent = '目前分數: ' + score;
+            shotSummaryDiv.textContent = '彈孔數: ' + shotCount + '｜平均分數: ' + average;
             shotList.style.display = shotCount ? 'table' : 'none';
             shotListBody.innerHTML = detectedHolesLog.map(entry => {
                 const time = new Date(entry.timestamp).toLocaleTimeString('zh-TW', { hour12: false });
-                return `<tr><td>${entry.shotNumber}</td><td>${entry.x}</td><td>${entry.y}</td><td>${entry.score}</td><td>${time}</td></tr>`;
+                return '<tr><td>' + entry.shotNumber + '</td><td>' + entry.x + '</td><td>' + entry.y + '</td><td>' + entry.score + '</td><td>' + time + '</td></tr>';
             }).join('');
         }
 
@@ -437,18 +312,13 @@
             return scoreRing;
         }
 
-        async function processFrame() {
-            if (!streaming) return;
+        function processFrame() {
+            if (!streaming && !isImageMode) return;
             drawZoomedVideoFrame();
 
             if (detectionActive) {
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                let holes = [];
-                if (detectionMethod === 'dl') {
-                    holes = await detectBulletHoles_async(imageData);
-                } else {
-                    holes = detectBulletHoles(imageData);
-                }
+                const holes = detectBulletHoles_bgDiff(imageData);
 
                 const newHoles = [];
                 holes.forEach(hole => {
@@ -482,24 +352,17 @@
 
             drawTargetOverlay();
             drawShotMarkers();
-            // 如果正在選取區域，畫出矩形
-            if (selecting) {
-                const scaleX = canvas.width / video.videoWidth;
-                const scaleY = canvas.height / video.videoHeight;
-                const sx = startX * scaleX;
-                const sy = startY * scaleY;
-                const ex = endX * scaleX;
-                const ey = endY * scaleY;
-                ctx.strokeStyle = 'lime';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(sx, sy, ex - sx, ey - sy);
-            }
 
-            requestAnimationFrame(processFrame);
+            if (streaming) {
+                requestAnimationFrame(processFrame);
+            }
         }
 
-
         function drawZoomedVideoFrame() {
+            if (isImageMode && loadedImageObj) {
+                ctx.drawImage(loadedImageObj, 0, 0, canvas.width, canvas.height);
+                return;
+            }
             const sourceWidth = video.videoWidth || canvas.width;
             const sourceHeight = video.videoHeight || canvas.height;
             const zoom = opticalZoomSupported ? 1 : Math.max(1, cameraZoom);
@@ -511,7 +374,7 @@
         }
 
         function updateVideoZoomPreview() {
-            video.style.transform = opticalZoomSupported ? 'scale(1)' : `scale(${cameraZoom})`;
+            video.style.transform = opticalZoomSupported ? 'scale(1)' : 'scale(' + cameraZoom + ')';
             zoomValue.textContent = cameraZoom.toFixed(1);
         }
 
@@ -557,47 +420,142 @@
             updateVideoZoomPreview();
         }
 
-        // 載入 coco-ssd 模型
-        async function loadModel() {
-            dlStatusDiv.textContent = '正在載入模型…';
-            try {
-                // @ts-ignore: cocoSsd is globally loaded after script
-                cocoModel = await cocoSsd.load();
-                modelReady = true;
-                dlStatusDiv.textContent = '模型載入成功';
-                console.log('Model loaded');
-            } catch (err) {
-                console.error('Failed to load model:', err);
-                dlStatusDiv.textContent = '模型載入失敗，請檢查網路';
-            }
-        }
-
         startBtn.addEventListener('click', async () => {
-            try {
-                videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                video.srcObject = videoStream;
+            if (window.location.protocol === 'file:') {
+                alert('【瀏覽器限制提示】\n您目前以 file:// 協定直接開啟檔案，瀏覽器禁止存取相機！\n\n解決方法：\n1. 請在資料夾中雙擊執行 「start_server.bat」 啟動本地伺服器。\n2. 或點擊 「載入圖片／影片檔案」 來進行測試。');
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('您的瀏覽器不支援 getUserMedia 相機 API，請確認使用 HTTPS 或 localhost 開啟本頁面。');
+                return;
+            }
+
+            const constraintsList = [
+                { video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } } },
+                { video: true }
+            ];
+
+            videoStream = null;
+            let lastError = null;
+
+            for (const constraints of constraintsList) {
+                try {
+                    videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    if (videoStream) break;
+                } catch (err) {
+                    lastError = err;
+                    console.warn('嘗試相機條件失敗:', constraints, err);
+                }
+            }
+
+            if (!videoStream) {
+                let errMsg = '無法存取攝影機：\n';
+                if (lastError) {
+                    if (lastError.name === 'NotAllowedError' || lastError.name === 'PermissionDeniedError') {
+                        errMsg += '1. 權限被拒絕：請點擊網址列左側的「鎖頭/設定」圖示，將「攝影機」改為允許。\n';
+                    } else if (lastError.name === 'NotFoundError' || lastError.name === 'DevicesNotFoundError') {
+                        errMsg += '2. 找不到相機：請確認鏡頭已妥善連接。\n';
+                    } else if (lastError.name === 'NotReadableError' || lastError.name === 'TrackStartError') {
+                        errMsg += '3. 相機被占用：請關閉其他使用鏡頭的軟體（如 Zoom、LINE、Teams）。\n';
+                    } else {
+                        errMsg += lastError.message || lastError.name;
+                    }
+                } else {
+                    errMsg += '未知錯誤';
+                }
+                if (window.location.protocol === 'file:') {
+                    errMsg += '\n★ 提醒：目前是以 file:// 開啟，必須改用 localhost 伺服器才能存取相機！';
+                }
+                alert(errMsg);
+                return;
+            }
+
+            isImageMode = false;
+            video.srcObject = videoStream;
+            streaming = true;
+            detectionActive = false;
+            startBtn.disabled = true;
+            bgCapBtn.disabled = false;
+            detectToggleBtn.disabled = false;
+            detectToggleBtn.textContent = '開始彈孔偵測';
+            stopBtn.disabled = false;
+            calibBtn.disabled = true;
+            controlsDiv.style.display = 'block';
+            exportBtn.style.display = 'none';
+            saveImgBtn.style.display = 'none';
+            setupZoomControl();
+            requestAnimationFrame(processFrame);
+        });
+
+        // 載入本地影片/圖片檔案備選功能
+        uploadBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const url = URL.createObjectURL(file);
+
+            if (file.type.startsWith('video/')) {
+                isImageMode = false;
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                    videoStream = null;
+                }
+                video.srcObject = null;
+                video.src = url;
+                video.loop = true;
+                video.play();
                 streaming = true;
                 detectionActive = false;
-                startBtn.disabled = true;
+                startBtn.disabled = false;
+                bgCapBtn.disabled = false;
                 detectToggleBtn.disabled = false;
                 detectToggleBtn.textContent = '開始彈孔偵測';
                 stopBtn.disabled = false;
-                calibBtn.disabled = true;
                 controlsDiv.style.display = 'block';
-                exportBtn.style.display = 'none';
-                saveImgBtn.style.display = 'none';
-                setupZoomControl();
                 requestAnimationFrame(processFrame);
-            } catch (err) {
-                alert('無法存取攝影機: ' + err);
+            } else if (file.type.startsWith('image/')) {
+                streaming = false;
+                isImageMode = true;
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                    videoStream = null;
+                }
+                const img = new Image();
+                img.onload = () => {
+                    loadedImageObj = img;
+                    drawZoomedVideoFrame();
+                    bgCapBtn.disabled = false;
+                    detectToggleBtn.disabled = false;
+                    stopBtn.disabled = false;
+                    controlsDiv.style.display = 'block';
+                    drawTargetOverlay();
+                    drawShotMarkers();
+                };
+                img.src = url;
             }
         });
 
-        detectToggleBtn.addEventListener('click', async () => {
-            detectionActive = !detectionActive;
-            detectToggleBtn.textContent = detectionActive ? '暫停彈孔偵測' : '開始彈孔偵測';
-            if (detectionActive && methodSelect.value === 'dl' && !modelReady) {
-                await loadModel();
+        bgCapBtn.addEventListener('click', () => {
+            captureBackground();
+        });
+
+        detectToggleBtn.addEventListener('click', () => {
+            if (!detectionActive) {
+                if (!bgImageData) {
+                    captureBackground();
+                }
+                detectionActive = true;
+                detectToggleBtn.textContent = '暫停彈孔偵測';
+                if (isImageMode) {
+                    processFrame();
+                }
+            } else {
+                detectionActive = false;
+                detectToggleBtn.textContent = '開始彈孔偵測';
             }
         });
 
@@ -608,7 +566,10 @@
         stopBtn.addEventListener('click', () => {
             streaming = false;
             detectionActive = false;
+            isImageMode = false;
+            loadedImageObj = null;
             startBtn.disabled = false;
+            bgCapBtn.disabled = true;
             detectToggleBtn.disabled = true;
             detectToggleBtn.textContent = '開始彈孔偵測';
             stopBtn.disabled = true;
@@ -617,6 +578,7 @@
                 videoStream.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
             }
+            video.src = '';
             zoomTrack = null;
             opticalZoomSupported = false;
             cameraZoom = 1;
@@ -628,6 +590,9 @@
             score = 0;
             detectedHolesLog = [];
             detectedHolesSet = [];
+            bgImageData = null;
+            bgStatusDiv.textContent = '背景狀態: 尚未擷取基準背景';
+            bgStatusDiv.style.color = '#555';
             updateScoreboard();
             exportBtn.style.display = 'none';
             saveImgBtn.style.display = 'none';
@@ -666,147 +631,33 @@
             radiusValue.textContent = targetRadius;
         });
 
-        darkThreshSlider.addEventListener('input', () => {
-            darkThreshold = parseInt(darkThreshSlider.value);
-            darkThreshVal.textContent = darkThreshold;
+        diffThreshSlider.addEventListener('input', () => {
+            diffThreshold = parseInt(diffThreshSlider.value);
+            diffThreshVal.textContent = diffThreshold;
+            if (isImageMode && detectionActive) {
+                processFrame();
+            }
         });
 
         minAreaSlider.addEventListener('input', () => {
             minArea = parseInt(minAreaSlider.value);
             minAreaVal.textContent = minArea;
+            if (isImageMode && detectionActive) {
+                processFrame();
+            }
         });
 
         maxAreaSlider.addEventListener('input', () => {
             maxArea = parseInt(maxAreaSlider.value);
             maxAreaVal.textContent = maxArea;
-        });
-
-        methodSelect.addEventListener('change', () => {
-            detectionMethod = methodSelect.value;
-            if (detectionMethod === 'dl' && !modelReady) {
-                loadModel();
+            if (isImageMode && detectionActive) {
+                processFrame();
             }
         });
 
         function updateCenterDisplay() {
             centerXSpan.textContent = Math.round(targetCenter.x);
             centerYSpan.textContent = Math.round(targetCenter.y);
-        }
-
-        // === 樣本收集功能 ===
-        sampleBtn.addEventListener('click', () => {
-            samplingMode = !samplingMode;
-            if (samplingMode) {
-                sampleBtn.classList.add('active');
-                sampleBtn.textContent = '取消樣本收集';
-            } else {
-                sampleBtn.classList.remove('active');
-                sampleBtn.textContent = '加入樣本';
-            }
-        });
-
-        clearSamplesBtn.addEventListener('click', () => {
-            // 保留內建模板，清除使用者樣本
-            while (allTemplates.length > 1) {
-                allTemplates.pop();
-            }
-            updateSampleCount();
-        });
-
-        function updateSampleCount() {
-            const userCount = allTemplates.length - 1; // 減去內建模板
-            sampleInfoDiv.textContent = `樣本數: ${userCount}`;
-        }
-
-        // 滑鼠事件用於框選樣本區域
-        video.addEventListener('mousedown', (e) => {
-            if (!samplingMode) return;
-            selecting = true;
-            const rect = video.getBoundingClientRect();
-            const scaleX = video.videoWidth / rect.width;
-            const scaleY = video.videoHeight / rect.height;
-            startX = (e.clientX - rect.left) * scaleX;
-            startY = (e.clientY - rect.top) * scaleY;
-            endX = startX;
-            endY = startY;
-        });
-
-        video.addEventListener('mousemove', (e) => {
-            if (!selecting) return;
-            const rect = video.getBoundingClientRect();
-            const scaleX = video.videoWidth / rect.width;
-            const scaleY = video.videoHeight / rect.height;
-            endX = (e.clientX - rect.left) * scaleX;
-            endY = (e.clientY - rect.top) * scaleY;
-        });
-
-        video.addEventListener('mouseup', (e) => {
-            if (!selecting) return;
-            selecting = false;
-            const rect = video.getBoundingClientRect();
-            const scaleX = video.videoWidth / rect.width;
-            const scaleY = video.videoHeight / rect.height;
-            endX = (e.clientX - rect.left) * scaleX;
-            endY = (e.clientY - rect.top) * scaleY;
-            // 正規化座標
-            const x1 = Math.min(startX, endX);
-            const y1 = Math.min(startY, endY);
-            const x2 = Math.max(startX, endX);
-            const y2 = Math.max(startY, endY);
-            const w = x2 - x1;
-            const h = y2 - y1;
-            if (w > 0 && h > 0) {
-                capturePatch(x1, y1, w, h);
-            }
-            // 選取結束後會在下一幀 processFrame 中不再畫矩形（selecting=false）
-        });
-
-        video.addEventListener('mouseleave', (e) => {
-            if (selecting) {
-                selecting = false;
-            }
-        });
-
-        function capturePatch(x, y, w, h) {
-            x = Math.round(x);
-            y = Math.round(y);
-            w = Math.max(1, Math.round(w));
-            h = Math.max(1, Math.round(h));
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = video.videoWidth;
-            tempCanvas.height = video.videoHeight;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-            const patchData = tempCtx.getImageData(x, y, w, h);
-            // 轉為灰度並正規化 (零均值、單位範數)
-            const gray = new Float32Array(w * h);
-            const data = patchData.data;
-            let sum = 0;
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                const v = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                const idx = Math.floor(i / 4);
-                gray[idx] = v;
-                sum += v;
-            }
-            const mean = sum / gray.length;
-            for (let i = 0; i < gray.length; i++) {
-                gray[i] -= mean;
-            }
-            let norm = 0;
-            for (let i = 0; i < gray.length; i++) {
-                norm += gray[i] * gray[i];
-            }
-            norm = Math.sqrt(norm);
-            if (norm === 0) norm = 1;
-            for (let i = 0; i < gray.length; i++) {
-                gray[i] /= norm;
-            }
-            // 加入模板列表
-            allTemplates.push({ width: w, height: h, data: gray });
-            updateSampleCount();
         }
 
         // 匯出紀錄為 CSV
@@ -824,13 +675,13 @@
                 entry.timestamp
             ]);
             const csvContent = [header, ...rows]
-                .map(e => e.map(v => `"${v}"`).join(','))
+                .map(e => e.map(v => '"' + v + '"').join(','))
                 .join('\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', `靶紙射擊紀錄_${new Date().toISOString().slice(0,19)}.csv`);
+            link.setAttribute('download', '靶紙射擊紀錄_' + new Date().toISOString().slice(0,19) + '.csv');
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
@@ -843,7 +694,7 @@
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.setAttribute('href', url);
-                link.setAttribute('download', `靶紙畫面_${new Date().toISOString().slice(0,19)}.png`);
+                link.setAttribute('download', '靶紙畫面_' + new Date().toISOString().slice(0,19) + '.png');
                 link.style.visibility = 'hidden';
                 document.body.appendChild(link);
                 link.click();
@@ -852,7 +703,6 @@
         });
 
         controlsDiv.style.display = 'none';
-        updateSampleCount();
         updateScoreboard();
     </script>
 </body>
