@@ -20,10 +20,11 @@
         #controls div { margin:5px 0; }
         label { margin-right:5px; }
         input[type=range] { width:200px; vertical-align:middle; }
-        #exportBtn, #saveImgBtn, #bgCapBtn, #uploadBtn { margin-top:10px; }
+        #exportBtn, #saveImgBtn, #bgCapBtn, #uploadBtn, #roiBtn { margin-top:10px; }
         .info-status { font-size:0.9em; color:#555; margin-top:5px; }
         #bgCapBtn { background:#008CBA; color:white; }
         #uploadBtn { background:#8e44ad; color:white; }
+        #roiBtn { background:#2ecc71; color:white; }
         .protocol-warning {
             background-color: #fff3cd;
             color: #856404;
@@ -34,6 +35,7 @@
             max-width: 1290px;
             line-height: 1.5;
         }
+        .roi-active { background:#27ae60 !important; }
     </style>
 </head>
 <body>
@@ -63,11 +65,13 @@
         <button id="detectToggleBtn" disabled>開始彈孔偵測</button>
         <button id="stopBtn" disabled>關閉／停止</button>
         <button id="calibBtn">校正靶位</button>
+        <button id="roiBtn" disabled>設定偵測區域</button>
         <button id="exportBtn" style="display:none;">匯出紀錄</button>
         <button id="saveImgBtn" style="display:none;">儲存影像</button>
         <div id="score">目前分數: 0</div>
         <div id="shotSummary">彈孔數: 0｜平均分數: 0.0</div>
         <div id="bgStatus" class="info-status">背景狀態: 尚未擷取基準背景</div>
+        <div id="roiStatus" class="info-status">偵測區域: 未設定（全畫面）</div>
         <table id="shotList" style="display:none;">
             <thead>
                 <tr><th>序號</th><th>X</th><th>Y</th><th>分數</th><th>時間</th></tr>
@@ -125,10 +129,12 @@
         const calibBtn = document.getElementById('calibBtn');
         const exportBtn = document.getElementById('exportBtn');
         const saveImgBtn = document.getElementById('saveImgBtn');
+        const roiBtn = document.getElementById('roiBtn');
         const scoreDiv = document.getElementById('score');
         const controlsDiv = document.getElementById('controls');
         const shotSummaryDiv = document.getElementById('shotSummary');
         const bgStatusDiv = document.getElementById('bgStatus');
+        const roiStatusDiv = document.getElementById('roiStatus');
         const shotList = document.getElementById('shotList');
         const shotListBody = document.getElementById('shotListBody');
         const radiusSlider = document.getElementById('radiusSlider');
@@ -169,6 +175,12 @@
 
         // 基準背景數據
         let bgImageData = null;
+
+        // ROI (Region Of Interest) 相關
+        let roiSelecting = false;
+        let roiStart = null;
+        let roiEnd = null;
+        let roiRect = null; // {x1,y1,x2,y2} in canvas coordinates
 
         // 擷取基準背景
         function captureBackground() {
@@ -292,6 +304,18 @@
             });
         }
 
+        function drawROI() {
+            if (!roiRect) return;
+            ctx.save();
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.rect(roiRect.x1, roiRect.y1, roiRect.x2 - roiRect.x1, roiRect.y2 - roiRect.y1);
+            ctx.stroke();
+            ctx.restore();
+        }
+
         function updateScoreboard() {
             const shotCount = detectedHolesLog.length;
             const average = shotCount ? (score / shotCount).toFixed(1) : '0.0';
@@ -302,6 +326,16 @@
                 const time = new Date(entry.timestamp).toLocaleTimeString('zh-TW', { hour12: false });
                 return '<tr><td>' + entry.shotNumber + '</td><td>' + entry.x + '</td><td>' + entry.y + '</td><td>' + entry.score + '</td><td>' + time + '</td></tr>';
             }).join('');
+        }
+
+        function updateROIStatus() {
+            if (!roiRect) {
+                roiStatusDiv.textContent = '偵測區域: 未設定（全畫面）';
+                roiStatusDiv.style.color = '#555';
+            } else {
+                roiStatusDiv.textContent = `偵測區域: (${roiRect.x1},${roiRect.y1}) 到 (${roiRect.x2},${roiRect.y2})`;
+                roiStatusDiv.style.color = '#27ae60';
+            }
         }
 
         function calculateScore(hole) {
@@ -315,13 +349,20 @@
         function processFrame() {
             if (!streaming && !isImageMode) return;
             drawZoomedVideoFrame();
-
             if (detectionActive) {
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const holes = detectBulletHoles_bgDiff(imageData);
 
                 const newHoles = [];
                 holes.forEach(hole => {
+                    // ROI filter
+                    let inROI = true;
+                    if (roiRect) {
+                        inROI = (hole.x >= roiRect.x1 && hole.x <= roiRect.x2 &&
+                                 hole.y >= roiRect.y1 && hole.y <= roiRect.y2);
+                    }
+                    if (!inROI) return;
+
                     const isDuplicate = detectedHolesSet.some(existing => isSameHole(hole, existing));
                     if (!isDuplicate) {
                         newHoles.push(hole);
@@ -349,9 +390,9 @@
                     updateScoreboard();
                 }
             }
-
             drawTargetOverlay();
             drawShotMarkers();
+            drawROI(); // draw ROI overlay
 
             if (streaming) {
                 requestAnimationFrame(processFrame);
@@ -422,7 +463,7 @@
 
         startBtn.addEventListener('click', async () => {
             if (window.location.protocol === 'file:') {
-                alert('【瀏覽器限制提示】\n您目前以 file:// 協定直接開啟檔案，瀏覽器禁止存取相機！\n\n解決方法：\n1. 請在資料夾中雙擊執行 「start_server.bat」 啟動本地伺服器。\n2. 或點擊 「載入圖片／影片檔案」 來進行測試。');
+                alert('【瀏覽器限制提示】\\n您目前以 file:// 協定直接開啟檔案，瀏覽器禁止存取相機！\\n\\n解決方法：\\n1. 請在資料夾中雙擊執行 「start_server.bat」 啟動本地伺服器。\\n2. 或點擊 「載入圖片／影片檔案」 來進行測試。');
             }
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -449,14 +490,14 @@
             }
 
             if (!videoStream) {
-                let errMsg = '無法存取攝影機：\n';
+                let errMsg = '無法存取攝影機：\\n';
                 if (lastError) {
                     if (lastError.name === 'NotAllowedError' || lastError.name === 'PermissionDeniedError') {
-                        errMsg += '1. 權限被拒絕：請點擊網址列左側的「鎖頭/設定」圖示，將「攝影機」改為允許。\n';
+                        errMsg += '1. 權限被拒絕：請點擊網址列左側的「鎖頭/設定」圖示，將「攝影機」改為允許。\\n';
                     } else if (lastError.name === 'NotFoundError' || lastError.name === 'DevicesNotFoundError') {
-                        errMsg += '2. 找不到相機：請確認鏡頭已妥善連接。\n';
+                        errMsg += '2. 找不到相機：請確認鏡頭已妥善連接。\\n';
                     } else if (lastError.name === 'NotReadableError' || lastError.name === 'TrackStartError') {
-                        errMsg += '3. 相機被占用：請關閉其他使用鏡頭的軟體（如 Zoom、LINE、Teams）。\n';
+                        errMsg += '3. 相機被占用：請關閉其他使用鏡頭的軟體（如 Zoom、LINE、Teams）。\\n';
                     } else {
                         errMsg += lastError.message || lastError.name;
                     }
@@ -464,7 +505,7 @@
                     errMsg += '未知錯誤';
                 }
                 if (window.location.protocol === 'file:') {
-                    errMsg += '\n★ 提醒：目前是以 file:// 開啟，必須改用 localhost 伺服器才能存取相機！';
+                    errMsg += '\\n★ 提醒：目前是以 file:// 開啟，必須改用 localhost 伺服器才能存取相機！';
                 }
                 alert(errMsg);
                 return;
@@ -481,6 +522,7 @@
             stopBtn.disabled = false;
             calibBtn.disabled = true;
             controlsDiv.style.display = 'block';
+            roiBtn.disabled = false; // enable ROI button after camera start
             exportBtn.style.display = 'none';
             saveImgBtn.style.display = 'none';
             setupZoomControl();
@@ -516,6 +558,7 @@
                 detectToggleBtn.textContent = '開始彈孔偵測';
                 stopBtn.disabled = false;
                 controlsDiv.style.display = 'block';
+                roiBtn.disabled = false; // enable ROI button for file mode too
                 requestAnimationFrame(processFrame);
             } else if (file.type.startsWith('image/')) {
                 streaming = false;
@@ -532,6 +575,7 @@
                     detectToggleBtn.disabled = false;
                     stopBtn.disabled = false;
                     controlsDiv.style.display = 'block';
+                    roiBtn.disabled = false; // enable ROI for image mode
                     drawTargetOverlay();
                     drawShotMarkers();
                 };
@@ -551,7 +595,7 @@
                 detectionActive = true;
                 detectToggleBtn.textContent = '暫停彈孔偵測';
                 if (isImageMode) {
-                    processFrame();
+                    processFrame(); // process once for image mode
                 }
             } else {
                 detectionActive = false;
@@ -593,6 +637,15 @@
             bgImageData = null;
             bgStatusDiv.textContent = '背景狀態: 尚未擷取基準背景';
             bgStatusDiv.style.color = '#555';
+            // reset ROI
+            roiSelecting = false;
+            roiStart = null;
+            roiEnd = null;
+            roiRect = null;
+            roiBtn.disabled = true; // disable until next camera/file start
+            roiBtn.textContent = '設定偵測區域';
+            roiBtn.classList.remove('roi-active');
+            updateROIStatus();
             updateScoreboard();
             exportBtn.style.display = 'none';
             saveImgBtn.style.display = 'none';
@@ -660,6 +713,75 @@
             centerYSpan.textContent = Math.round(targetCenter.y);
         }
 
+        // ROI 互動
+        roiBtn.addEventListener('click', () => {
+            if (!roiSelecting) {
+                // start selecting mode
+                roiSelecting = true;
+                roiBtn.textContent = '取消區域選擇';
+                roiBtn.classList.add('roi-active');
+                roiStatusDiv.textContent = '偵測區域: 正在選擇... 請拖曳滑鼠畫出矩形';
+                roiStatusDiv.style.color = '#f39c12';
+            } else {
+                // cancel selecting mode
+                roiSelecting = false;
+                roiStart = null;
+                roiEnd = null;
+                // keep existing roiRect if any, otherwise clear
+                // but we choose to clear on cancel for simplicity
+                roiRect = null;
+                roiBtn.textContent = '設定偵測區域';
+                roiBtn.classList.remove('roi-active');
+                updateROIStatus();
+            }
+        });
+
+        function getCanvasRelativePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (evt.clientX - rect.left) * scaleX,
+                y: (evt.clientY - rect.top) * scaleY
+            };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (!roiSelecting) return;
+            const pos = getCanvasRelativePos(e);
+            roiStart = pos;
+            roiEnd = pos;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!roiSelecting) return;
+            const pos = getCanvasRelativePos(e);
+            roiEnd = pos;
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (!roiSelecting) return;
+            const pos = getCanvasRelativePos(e);
+            roiEnd = pos;
+            // finalize rectangle
+            const x1 = Math.min(roiStart.x, roiEnd.x);
+            const y1 = Math.min(roiStart.y, roiEnd.y);
+            const x2 = Math.max(roiStart.x, roiEnd.x);
+            const y2 = Math.max(roiStart.y, roiEnd.y);
+            // ensure minimum size
+            if (x2 - x1 < 5 || y2 - y1 < 5) {
+                roiRect = null;
+                roiStatusDiv.textContent = '偵測區域: 區域太小，已取消';
+                roiStatusDiv.style.color = '#e74c3c';
+            } else {
+                roiRect = { x1, y1, x2, y2 };
+                updateROIStatus();
+            }
+            roiSelecting = false;
+            roiBtn.textContent = '設定偵測區域';
+            roiBtn.classList.remove('roi-active');
+        });
+
         // 匯出紀錄為 CSV
         exportBtn.addEventListener('click', () => {
             if (detectedHolesLog.length === 0) {
@@ -675,13 +797,13 @@
                 entry.timestamp
             ]);
             const csvContent = [header, ...rows]
-                .map(e => e.map(v => '"' + v + '"').join(','))
+                .map(e => e.map(v => `"${v}"`).join(','))
                 .join('\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', '靶紙射擊紀錄_' + new Date().toISOString().slice(0,19) + '.csv');
+            link.setAttribute('download', `靶紙射擊紀錄_${new Date().toISOString().slice(0,19)}.csv`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
@@ -694,7 +816,7 @@
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.setAttribute('href', url);
-                link.setAttribute('download', '靶紙畫面_' + new Date().toISOString().slice(0,19) + '.png');
+                link.setAttribute('download', `靶紙畫面_${new Date().toISOString().slice(0,19)}.png`);
                 link.style.visibility = 'hidden';
                 document.body.appendChild(link);
                 link.click();
@@ -704,6 +826,7 @@
 
         controlsDiv.style.display = 'none';
         updateScoreboard();
+        updateROIStatus();
     </script>
 </body>
 </html>
