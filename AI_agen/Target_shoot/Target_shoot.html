@@ -346,6 +346,13 @@
             return scoreRing;
         }
 
+        function speakHit(holeScore) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(`Hit ${holeScore}`);
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
         function processFrame() {
             if (!streaming && !isImageMode) return;
             drawZoomedVideoFrame();
@@ -381,6 +388,8 @@
                         score: holeScore,
                         timestamp: new Date().toISOString()
                     });
+                    // Voice output for this detection
+                    speakHit(holeScore);
                 });
 
                 if (newHoles.length > 0) {
