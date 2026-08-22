@@ -20,11 +20,13 @@
         #controls div { margin:5px 0; }
         label { margin-right:5px; }
         input[type=range] { width:200px; vertical-align:middle; }
-        #exportBtn, #saveImgBtn, #bgCapBtn, #uploadBtn, #roiBtn { margin-top:10px; }
+        #exportBtn, #saveImgBtn, #bgCapBtn, #uploadBtn, #roiBtn, #saveConfigBtn, #loadConfigBtn { margin-top:10px; }
         .info-status { font-size:0.9em; color:#555; margin-top:5px; }
         #bgCapBtn { background:#008CBA; color:white; }
         #uploadBtn { background:#8e44ad; color:white; }
         #roiBtn { background:#2ecc71; color:white; }
+        #saveConfigBtn { background:#9b59b6; color:white; }
+        #loadConfigBtn { background:#16a085; color:white; }
         .protocol-warning {
             background-color: #fff3cd;
             color: #856404;
@@ -62,11 +64,14 @@
         <button id="startBtn">開啟相機</button>
         <button id="uploadBtn">載入圖片／影片檔案</button>
         <input type="file" id="fileInput" accept="image/*,video/*" style="display:none;">
+        <input type="file" id="configFileInput" accept=".conf,text/*" style="display:none;">
         <button id="bgCapBtn" disabled>擷取基準背景</button>
         <button id="detectToggleBtn" disabled>開始彈孔偵測</button>
         <button id="stopBtn" disabled>關閉／停止</button>
         <button id="calibBtn">校正靶位</button>
         <button id="roiBtn" disabled>設定偵測區域</button>
+        <button id="saveConfigBtn">儲存設定</button>
+        <button id="loadConfigBtn">載入設定</button>
         <button id="exportBtn" style="display:none;">匯出紀錄</button>
         <button id="saveImgBtn" style="display:none;">儲存影像</button>
         <div id="score">目前分數: 0</div>
@@ -131,12 +136,15 @@
         const stopBtn = document.getElementById('stopBtn');
         const uploadBtn = document.getElementById('uploadBtn');
         const fileInput = document.getElementById('fileInput');
+        const configFileInput = document.getElementById('configFileInput');
         const bgCapBtn = document.getElementById('bgCapBtn');
         const detectToggleBtn = document.getElementById('detectToggleBtn');
         const calibBtn = document.getElementById('calibBtn');
         const exportBtn = document.getElementById('exportBtn');
         const saveImgBtn = document.getElementById('saveImgBtn');
         const roiBtn = document.getElementById('roiBtn');
+        const saveConfigBtn = document.getElementById('saveConfigBtn');
+        const loadConfigBtn = document.getElementById('loadConfigBtn');
         const scoreDiv = document.getElementById('score');
         const controlsDiv = document.getElementById('controls');
         const shotSummaryDiv = document.getElementById('shotSummary');
@@ -630,6 +638,18 @@
             }
         });
 
+        // 設定檔案輸入
+        configFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const text = event.target.result;
+                loadConfigFromText(text);
+            };
+            reader.readAsText(file);
+        });
+
         bgCapBtn.addEventListener('click', () => {
             captureBackground();
         });
@@ -694,6 +714,7 @@
             roiBtn.textContent = '設定偵測區域';
             roiBtn.classList.remove('roi-active');
             updateROIStatus();
+            // reset config to defaults? we keep current values unless loaded.
             updateScoreboard();
             exportBtn.style.display = 'none';
             saveImgBtn.style.display = 'none';
@@ -922,6 +943,95 @@
                 link.click();
                 document.body.removeChild(link);
             });
+        });
+
+        // 設定檔案儲存與載入功能
+        function saveConfig() {
+            const configText = `
+targetRadius=${targetRadius}
+targetCenterX=${Math.round(targetCenter.x)}
+targetCenterY=${Math.round(targetCenter.y)}
+diffThreshold=${diffThreshold}
+minArea=${minArea}
+maxArea=${maxArea}
+bgAlpha=${bgAlpha.toFixed(3)}
+            `.trim();
+            const blob = new Blob([configText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `靶紙設定_${new Date().toISOString().slice(0,19)}.conf`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function loadConfigFromText(text) {
+            try {
+                const lines = text.split('\n');
+                const values = {};
+                lines.forEach(line => {
+                    const trimmed = line.trim();
+                    if (trimmed === '' || trimmed.startsWith('#')) return;
+                    const parts = trimmed.split('=');
+                    if (parts.length === 2) {
+                        const key = parts[0].trim();
+                        const value = parts[1].trim();
+                        values[key] = value;
+                    }
+                });
+
+                if (values.targetRadius !== undefined) {
+                    targetRadius = parseInt(values.targetRadius);
+                    radiusSlider.value = targetRadius;
+                    radiusValue.textContent = targetRadius;
+                }
+                if (values.targetCenterX !== undefined && values.targetCenterY !== undefined) {
+                    targetCenter.x = parseFloat(values.targetCenterX);
+                    targetCenter.y = parseFloat(values.targetCenterY);
+                    centerXSpan.textContent = Math.round(targetCenter.x);
+                    centerYSpan.textContent = Math.round(targetCenter.y);
+                }
+                if (values.diffThreshold !== undefined) {
+                    diffThreshold = parseInt(values.diffThreshold);
+                    diffThreshSlider.value = diffThreshold;
+                    diffThreshVal.textContent = diffThreshold;
+                }
+                if (values.minArea !== undefined) {
+                    minArea = parseInt(values.minArea);
+                    minAreaSlider.value = minArea;
+                    minAreaVal.textContent = minArea;
+                }
+                if (values.maxArea !== undefined) {
+                    maxArea = parseInt(values.maxArea);
+                    maxAreaSlider.value = maxArea;
+                    maxAreaVal.textContent = maxArea;
+                }
+                if (values.bgAlpha !== undefined) {
+                    bgAlpha = parseFloat(values.bgAlpha);
+                    bgAlphaSlider.value = bgAlpha;
+                    bgAlphaVal.textContent = bgAlpha.toFixed(3);
+                }
+
+                // 如果目前在偵測模式且是圖片模式，立即重新處理幀以反映新設定
+                if (isImageMode && detectionActive) {
+                    processFrame();
+                }
+
+                alert('設定已成功載入！');
+            } catch (e) {
+                console.error('載入設定失敗:', e);
+                alert('載入設定失敗：請確認檔案格式是否正確。');
+            }
+        }
+
+        saveConfigBtn.addEventListener('click', () => {
+            saveConfig();
+        });
+
+        loadConfigBtn.addEventListener('click', () => {
+            configFileInput.click();
         });
 
         controlsDiv.style.display = 'none';
