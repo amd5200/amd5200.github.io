@@ -722,14 +722,14 @@
             centerYSpan.textContent = Math.round(targetCenter.y);
         }
 
-        // ROI 互動
+        // ROI 互動 - 支援滑鼠和觸控
         roiBtn.addEventListener('click', () => {
             if (!roiSelecting) {
                 // start selecting mode
                 roiSelecting = true;
                 roiBtn.textContent = '取消區域選擇';
                 roiBtn.classList.add('roi-active');
-                roiStatusDiv.textContent = '偵測區域: 正在選擇... 請拖曳滑鼠畫出矩形';
+                roiStatusDiv.textContent = '偵測區域: 正在選擇... 請拖曳畫出矩形';
                 roiStatusDiv.style.color = '#f39c12';
             } else {
                 // cancel selecting mode
@@ -755,6 +755,7 @@
             };
         }
 
+        // Mouse events
         canvas.addEventListener('mousedown', (e) => {
             if (!roiSelecting) return;
             const pos = getCanvasRelativePos(e);
@@ -791,6 +792,49 @@
             roiBtn.classList.remove('roi-active');
         });
 
+        // Touch events for mobile support
+        canvas.addEventListener('touchstart', (e) => {
+            if (!roiSelecting) return;
+            e.preventDefault(); // prevent scrolling
+            const touch = e.touches[0];
+            const pos = getCanvasRelativePos(touch);
+            roiStart = pos;
+            roiEnd = pos;
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!roiSelecting) return;
+            e.preventDefault(); // prevent scrolling
+            const touch = e.touches[0];
+            const pos = getCanvasRelativePos(touch);
+            roiEnd = pos;
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            if (!roiSelecting) return;
+            e.preventDefault(); // prevent scrolling
+            const touch = e.changedTouches[0];
+            const pos = getCanvasRelativePos(touch);
+            roiEnd = pos;
+            // finalize rectangle
+            const x1 = Math.min(roiStart.x, roiEnd.x);
+            const y1 = Math.min(roiStart.y, roiEnd.y);
+            const x2 = Math.max(roiStart.x, roiEnd.x);
+            const y2 = Math.max(roiStart.y, roiEnd.y);
+            // ensure minimum size
+            if (x2 - x1 < 5 || y2 - y1 < 5) {
+                roiRect = null;
+                roiStatusDiv.textContent = '偵測區域: 區域太小，已取消';
+                roiStatusDiv.style.color = '#e74c3c';
+            } else {
+                roiRect = { x1, y1, x2, y2 };
+                updateROIStatus();
+            }
+            roiSelecting = false;
+            roiBtn.textContent = '設定偵測區域';
+            roiBtn.classList.remove('roi-active');
+        }, { passive: false });
+
         // 匯出紀錄為 CSV
         exportBtn.addEventListener('click', () => {
             if (detectedHolesLog.length === 0) {
@@ -806,7 +850,7 @@
                 entry.timestamp
             ]);
             const csvContent = [header, ...rows]
-                .map(e => e.map(v => `"${v}"`).join(','))
+                .map(e => e.map(v => `\"${v}\"`).join(','))
                 .join('\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
