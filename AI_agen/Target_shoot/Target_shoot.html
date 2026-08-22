@@ -36,6 +36,7 @@
             line-height: 1.5;
         }
         .roi-active { background:#27ae60 !important; }
+        .track-active { background:#e74c3c !important; }
     </style>
 </head>
 <body>
@@ -109,6 +110,12 @@
             <input type="range" id="maxArea" min="50" max="2000" value="500">
             <span id="maxAreaVal">500</span> px²
         </div>
+        <div>
+            <label for="bgAlpha">背景適應率 (0-1): </label>
+            <input type="range" id="bgAlpha" min="0.001" max="0.1" step="0.001" value="0.01">
+            <span id="bgAlphaVal">0.010</span>
+            <span class="info-status">(越小越穩定，越大越快適應)</span>
+        </div>
     </div>
 
     <script>
@@ -150,6 +157,8 @@
         const zoomSlider = document.getElementById('zoomSlider');
         const zoomValue = document.getElementById('zoomValue');
         const zoomSupportInfo = document.getElementById('zoomSupportInfo');
+        const bgAlphaSlider = document.getElementById('bgAlpha');
+        const bgAlphaVal = document.getElementById('bgAlphaVal');
 
         let score = 0;
         let streaming = false;
@@ -172,9 +181,11 @@
         let diffThreshold = 35;
         let minArea = 10;
         let maxArea = 500;
+        let bgAlpha = 0.01; // 背景適應率
 
-        // 基準背景數據
-        let bgImageData = null;
+        // 自適應背景模型
+        let bgModel = null; // 現在會是自適應背景
+        let bgModelInitialized = false;
 
         // ROI (Region Of Interest) 相關
         let roiSelecting = false;
@@ -182,12 +193,14 @@
         let roiEnd = null;
         let roiRect = null; // {x1,y1,x2,y2} in canvas coordinates
 
-        // 擷取基準背景
+        // 擷取基準背景 (初始化自適應背景模型)
         function captureBackground() {
             if (!streaming && !isImageMode) return;
             drawZoomedVideoFrame();
-            bgImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            bgStatusDiv.textContent = '背景狀態: 已於 ' + new Date().toLocaleTimeString('zh-TW', { hour12: false }) + ' 擷取基準背景';
+            // 初始化背景模型為當前幀
+            bgModel = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            bgModelInitialized = true;
+            bgStatusDiv.textContent = '背景狀態: 已於 ' + new Date().toLocaleTimeString('zh-TW', { hour12: false }) + ' 初始化自適應背景';
             bgStatusDiv.style.color = '#27ae60';
         }
 
@@ -198,69 +211,94 @@
             return Math.sqrt(dx*dx + dy*dy) < threshold;
         }
 
-        // 背景變動差異偵測 (與基準背景比對)
-        function detectBulletHoles_bgDiff(currentImageData) {
-            if (!bgImageData) return [];
+        // 自適應背景差異偵測
+        function detectBulletHoles_adaptiveBg(currentImageData) {
+            if (!bgModelInitialized) return [];
 
             const width = currentImageData.width;
             const height = currentImageData.height;
             const currData = currentImageData.data;
-            const bgData = bgImageData.data;
+            const bgData = bgModel.data;
             const visited = new Uint8Array(width * height);
             const holes = [];
 
             const idx = (y, x) => (y * width + x) * 4;
 
+            // 第一步：計算差異並更新背景模型（只在非前景區域更新）
+            const diffImg = new Uint8ClampedArray(width * height * 4);
+            const fgMask = new Uint8Array(width * height); // 1 = 前景
+
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const vi = y * width + x;
-                    if (visited[vi]) continue;
+                    const i = idx(y, x);
+                    
+                    // 計算絕對差異 (使用亮度)
+                    const rDiff = Math.abs(currData[i] - bgData[i]);
+                    const gDiff = Math.abs(currData[i + 1] - bgData[i + 1]);
+                    const bDiff = Math.abs(currData[i + 2] - bgData[i + 2]);
+                    const diff = (rDiff + gDiff + bDiff) / 3;
+                    
+                    diffImg[i] = diff;
+                    diffImg[i + 1] = diff;
+                    diffImg[i + 2] = diff;
+                    diffImg[i + 3] = 255;
+                    
+                    // 如果差異小於門檻，視為背景並更新模型
+                    if (diff < diffThreshold) {
+                        // 更新背景模型：bg = (1-α)*bg + α*current
+                        bgData[i] = Math.round((1 - bgAlpha) * bgData[i] + bgAlpha * currData[i]);
+                        bgData[i + 1] = Math.round((1 - bgAlpha) * bgData[i + 1] + bgAlpha * currData[i + 1]);
+                        bgData[i + 2] = Math.round((1 - bgAlpha) * bgData[i + 2] + bgAlpha * currData[i + 2]);
+                        // Alpha通道保持不變
+                    } else {
+                        // 標記為前景（潛在彈孔）
+                        fgMask[vi] = 1;
+                    }
+                }
+            }
+
+            // 第二步：在差異圖中尋找連通元件（只考慮被標記為前景的區域）
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const vi = y * width + x;
+                    if (visited[vi] || !fgMask[vi]) continue;
 
                     const i = idx(y, x);
-                    const dr = Math.abs(currData[i] - bgData[i]);
-                    const dg = Math.abs(currData[i + 1] - bgData[i + 1]);
-                    const db = Math.abs(currData[i + 2] - bgData[i + 2]);
-                    const diff = (dr + dg + db) / 3;
+                    if (diffImg[i] <= diffThreshold) continue; // 雖然已標記為前景，但再次確認
 
-                    if (diff > diffThreshold) {
-                        const stack = [[y, x]];
-                        visited[vi] = 1;
-                        let sumX = 0, sumY = 0, count = 0;
+                    const stack = [[y, x]];
+                    visited[vi] = 1;
+                    let sumX = 0, sumY = 0, count = 0;
 
-                        while (stack.length) {
-                            const [cy, cx] = stack.pop();
-                            sumX += cx;
-                            sumY += cy;
-                            count++;
+                    while (stack.length) {
+                        const [cy, cx] = stack.pop();
+                        sumX += cx;
+                        sumY += cy;
+                        count++;
 
-                            const neighbours = [
-                                [cy - 1, cx],
-                                [cy + 1, cx],
-                                [cy, cx - 1],
-                                [cy, cx + 1]
-                            ];
+                        const neighbours = [
+                            [cy - 1, cx],
+                            [cy + 1, cx],
+                            [cy, cx - 1],
+                            [cy, cx + 1]
+                        ];
 
-                            for (const [ny, nx] of neighbours) {
-                                if (ny < 0 || ny >= height || nx < 0 || nx >= width) continue;
-                                const nv = ny * width + nx;
-                                if (visited[nv]) continue;
+                        for (const [ny, nx] of neighbours) {
+                            if (ny < 0 || ny >= height || nx < 0 || nx >= width) continue;
+                            const nv = ny * width + nx;
+                            if (visited[nv] || !fgMask[nv]) continue;
 
-                                const nidx = idx(ny, nx);
-                                const ndr = Math.abs(currData[nidx] - bgData[nidx]);
-                                const ndg = Math.abs(currData[nidx + 1] - bgData[nidx + 1]);
-                                const ndb = Math.abs(currData[nidx + 2] - bgData[nidx + 2]);
-                                const ndiff = (ndr + ndg + ndb) / 3;
+                            const nidx = idx(ny, nx);
+                            if (diffImg[nidx] <= diffThreshold) continue;
 
-                                if (ndiff > diffThreshold) {
-                                    visited[nv] = 1;
-                                    stack.push([ny, nx]);
-                                }
-                            }
+                            visited[nv] = 1;
+                            stack.push([ny, nx]);
                         }
+                    }
 
-                        if (count >= minArea && count <= maxArea) {
-                            holes.push({ x: sumX / count, y: sumY / count });
-                        }
+                    if (count >= minArea && count <= maxArea) {
+                        holes.push({ x: sumX / count, y: sumY / count });
                     }
                 }
             }
@@ -358,7 +396,7 @@
             drawZoomedVideoFrame();
             if (detectionActive) {
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const holes = detectBulletHoles_bgDiff(imageData);
+                const holes = detectBulletHoles_adaptiveBg(imageData);
 
                 const newHoles = [];
                 holes.forEach(hole => {
@@ -531,7 +569,7 @@
             stopBtn.disabled = false;
             calibBtn.disabled = true;
             controlsDiv.style.display = 'block';
-            roiBtn.disabled = false; // enable ROI button after camera start
+            roiBtn.disabled = false;
             exportBtn.style.display = 'none';
             saveImgBtn.style.display = 'none';
             setupZoomControl();
@@ -567,7 +605,7 @@
                 detectToggleBtn.textContent = '開始彈孔偵測';
                 stopBtn.disabled = false;
                 controlsDiv.style.display = 'block';
-                roiBtn.disabled = false; // enable ROI button for file mode too
+                roiBtn.disabled = false;
                 requestAnimationFrame(processFrame);
             } else if (file.type.startsWith('image/')) {
                 streaming = false;
@@ -584,7 +622,7 @@
                     detectToggleBtn.disabled = false;
                     stopBtn.disabled = false;
                     controlsDiv.style.display = 'block';
-                    roiBtn.disabled = false; // enable ROI for image mode
+                    roiBtn.disabled = false;
                     drawTargetOverlay();
                     drawShotMarkers();
                 };
@@ -598,7 +636,7 @@
 
         detectToggleBtn.addEventListener('click', () => {
             if (!detectionActive) {
-                if (!bgImageData) {
+                if (!bgModelInitialized) {
                     captureBackground();
                 }
                 detectionActive = true;
@@ -643,7 +681,8 @@
             score = 0;
             detectedHolesLog = [];
             detectedHolesSet = [];
-            bgImageData = null;
+            bgModel = null;
+            bgModelInitialized = false;
             bgStatusDiv.textContent = '背景狀態: 尚未擷取基準背景';
             bgStatusDiv.style.color = '#555';
             // reset ROI
@@ -651,7 +690,7 @@
             roiStart = null;
             roiEnd = null;
             roiRect = null;
-            roiBtn.disabled = true; // disable until next camera/file start
+            roiBtn.disabled = true;
             roiBtn.textContent = '設定偵測區域';
             roiBtn.classList.remove('roi-active');
             updateROIStatus();
@@ -712,6 +751,14 @@
         maxAreaSlider.addEventListener('input', () => {
             maxArea = parseInt(maxAreaSlider.value);
             maxAreaVal.textContent = maxArea;
+            if (isImageMode && detectionActive) {
+                processFrame();
+            }
+        });
+
+        bgAlphaSlider.addEventListener('input', () => {
+            bgAlpha = parseFloat(bgAlphaSlider.value);
+            bgAlphaVal.textContent = bgAlpha.toFixed(3);
             if (isImageMode && detectionActive) {
                 processFrame();
             }

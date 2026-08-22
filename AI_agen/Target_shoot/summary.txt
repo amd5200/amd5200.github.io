@@ -1,0 +1,81 @@
+## Historical Task Snapshot
+None
+
+## Goal
+建立一個符合使用者需求的靶紙射擊偵測與計分系統：  
+- 僅在使用者主動點擊「啟動偵測」後開始偵測。  
+- 偵測基於影像幀間的顏色變異（背景差異），不依賴固定顏色門檻或樣本/模型。  
+- 移除無法正常運作的 Template 匹配與 COCO‑SSD 深度學習模式。  
+- 保留即時校正靶位、可調整偵測靈敏度（若需要）、彈孔紀錄與匯出、影像儲存等功能。  
+- 將其他 AI 提供的程式碼納入作為參考實作。  
+
+## Constraints & Preferences
+- 不得使用 Template 匹配（滑動視窗標準化互相關）或 DL（TensorFlow.js COCO‑SSD）。  
+- 偵測必須依賴幀差異（例如背景減法或光流簡易變化）而非單一顏色篩選。  
+- 偵測啟動與停止應由「啟動偵測」/「停止偵測」按鈕完全控制，頁面載入或攝影機開啟時不自動開始處理。  
+- 程式碼需放置於 `C:\Users\User\Documents\Target_shoot\Target_shoot.html`，說明文件為同目錄 `README.md`。  
+- 必須保留多發彈孔追蹤（避免重複計數）、環形計分、即時分數顯示、彈孔座標紀錄（CSV 匯出）、畫面儲存（PNG）等既有功能。  
+- 不要保存任何金鑰、密碼或憑證；若出現則以 `[REDACTED]` 取代。  
+
+## Completed Actions
+1. **CREATE folder** `C:\Users\User\Documents\Target_shoot` — created target directory.  
+2. **WRITE** initial `index.html` — basic detection UI (black‑pixel detection). \[tool: write_file\]  
+3. **READ** `index.html` (first 305 chars) — verified content. \[tool: read_file\]  
+4. **RENAME** `index.html` → `Target_shoot.html` and adjust references — file name matches folder. \[tool: write_file + terminal mv\]  
+5. **WRITE** multi‑hole tracking version of `Target_shoot.html` — added detectedHoles list and distance‑threshold deduplication. \[tool: write_file\]  
+6. **WRITE** `README.md` with usage instructions. \[tool: write_file\]  
+7. **ADD** calibration feature (target centre selection, radius slider). \[tool: write_file\]  
+8. **ENHANCE** detection algorithm to blob‑based (connected‑components) dark‑spot detection. \[tool: write_file\]  
+9. **ADD** real‑time adjustable thresholds (darkness, min/max area) via sliders. \[tool: write_file\]  
+10. **ADD** record‑and‑export (CSV) and image‑save (PNG) buttons. \[tool: write_file\]  
+11. **INTEGRATE** deep‑learning model (COCO‑SSD) as an optional detection method (loads TensorFlow.js model). \[tool: write_file\]  
+12. **ADD** sample‑collection mode for template matching — user clicks to grab 20×20 patches and add to template list. \[tool: write_file\]  
+13. **READ** latest `Target_shoot.html` (full 23 035 chars) to confirm current state. \[tool: read_file\]  
+14. **UPDATE** `README.md` after each feature addition (usage, update history). \[tool: write_file\]  
+15. **MODIFY** `Target_shoot.html` — added ROI selection via mouse drag to restrict detection to user‑defined area \[tool: write_file\]  
+16. **MODIFY** `Target_shoot.html` — added manual target selection and tracking via click‑drag with template matching (SSD) for continuous target following, displaying a pink/red box with “LOCKED TARGET” label and crosshair. \[tool: write_file\]  
+
+## Active State
+- **Working directory**: `C:\Users\User\Documents\Target_shoot`  
+- **Modified files**:  
+  - `Target_shoot.html` (current version implements background‑difference detection, manual start gating, ROI selection via mouse/touch, manual target selection/tracking, calibration, adjustable thresholds, blob‑based hole filtering, scoring, CSV export, PNG save, camera zoom, and voice output).  
+  - `README.md` (updated usage instructions and revision history).  
+- **No running processes** detected; the system is idle awaiting user interaction in a browser.  
+- **Environment**: standard HTML/JavaScript, runs in Chrome/Edge; no external server required.  
+
+## Blocked
+- None (all previously reported blockers — automatic start on camera open, template/DL presence, fixed colour thresholds — have been resolved).  
+
+## Key Decisions
+- Adopted background‑difference detection to satisfy the requirement of relying on frame‑to‑frame colour variation rather than static colour thresholds.  
+- Gated the detection loop with the 「開始彈孔偵測」/「暫停彈孔偵測」 button so processing only begins after explicit user action.  
+- Implemented ROI selection through mouse‑drag and touch‑drag with a visual overlay, ensuring that only pixels inside the user‑defined rectangle are analysed for holes.  
+- Implemented manual target selection and tracking using click‑drag (mouse or touch) to select a target, then employing a scaled‑down SSD template matching algorithm to continuously track that target even if it moves, displaying a pink/red box with “LOCKED TARGET” label and crosshair indicator.  
+- Retained calibration, scoring, export, zoom, and voice output features to preserve all requested functionalities.  
+- Removed Template Matching and COCO‑SSD branches as they were non‑functional in the target environment.  
+
+## Resolved Questions
+- **Q:** How to avoid double‑counting the same hole?  
+  **A:** Implemented `detectedHoles` list with distance‑threshold (`15` px) check before adding a new detection.  
+- **Q:** How to export detection data?  
+  **A:** Added 「匯出紀錄」 button that converts internal records to CSV and triggers a download.  
+- **Q:** How to save the current frame with markings?  
+  **A:** Added 「儲存影像」 button that uses `canvas.toBlob()` to download a PNG.  
+- **Q:** 如何將偵測限制在使用者選定的區域內？  
+  **A:** 在程式中加入滑鼠拖曳選取框（ROI），偵測函式只處理落在該框內的像素，其他區域一律忽略。  
+- **Q:** 如何手動選取並持續追蹤特定目標（例如移動的靶標）？  
+  **A:** 使用者可按住滑鼠（桌機）或手指（行動裝置）在影像上拖曳框選目標，系統將使用模板匹配演算法（SSD）持續追蹤該目標，即使目標移動也能自動調整追蹤框位置。追蹤框以粉紅色方框顯示，並帶有「LOCKED TARGET」標籤及十字線瞄準器。  
+
+## Relevant Files
+- `C:\Users\User\Documents\Target_shoot\Target_shoot.html` — main application logic (HTML/CSS/JS) with background difference detection, manual start, ROI selection, manual target tracking, calibration, scoring, export, save, and voice output.  
+- `C:\Users\User\Documents\Target_shoot\README.md` — usage guide and revision history.  
+
+## Critical Context
+- No API keys, tokens, passwords, or credentials appear; none needed redaction.  
+- Detection method is now based on frame difference (background subtraction) and is only active after the user presses 「開始彈孔偵測」.  
+- ROI selection is implemented via mouse drag; on mobile devices touch events are also supported for full compatibility.  
+- Manual target selection and tracking is implemented via mouse/touch drag required to initialize the tracker, after which the system uses template matching to follow the selected target even if it moves within the scene.  
+- The user’s requested constraints — no automatic start on camera open, no template/DL usage, reliance on background‑difference logic — are all satisfied.  
+
+## Pruned Skills
+*(none)*
