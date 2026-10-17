@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IPSC 專業戰術計時器與靶紙計分系統</title>
+    <title>IPSC 專業戰術計時器與靶紙計分系統 Pro</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -41,7 +41,6 @@
         .font-digit {
             font-family: 'Orbitron', sans-serif;
         }
-        /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
         }
@@ -51,6 +50,10 @@
         ::-webkit-scrollbar-thumb {
             background: #2c2c3d;
             border-radius: 3px;
+        }
+        .zone-pill.active {
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+            border-color: #ef4444 !important;
         }
     </style>
 </head>
@@ -63,8 +66,8 @@
                 <i class="fa-solid fa-crosshairs"></i>
             </div>
             <div>
-                <h1 class="font-digit text-lg font-bold tracking-wider text-white">IPSC TIMER</h1>
-                <p class="text-xs text-slate-400">Tactical Shot & Scoring System</p>
+                <h1 class="font-digit text-lg font-bold tracking-wider text-white">IPSC TIMER Pro</h1>
+                <p class="text-xs text-slate-400">Tactical Shot & Target Scoring System</p>
             </div>
         </div>
         <!-- Navigation Tabs -->
@@ -107,7 +110,7 @@
 
                 <!-- Oscilloscope Waveform Canvas -->
                 <div class="mt-4 bg-tactical-900 rounded-xl border border-tactical-700 p-2 overflow-hidden relative">
-                    <div class="absolute top-1 left-2 text-[10px] text-slate-500 font-mono">即時波形監控 / 靈敏度檢視</div>
+                    <div class="absolute top-1 left-2 text-[10px] text-slate-500 font-mono">即時音波波形監控 / 靈敏度檢視</div>
                     <canvas id="oscilloscope" class="w-full h-16 rounded"></canvas>
                 </div>
 
@@ -137,9 +140,9 @@
                         <input type="range" id="threshold-slider" min="5" max="90" value="35" class="w-full accent-tactical-red bg-tactical-700 rounded-lg h-2 cursor-pointer" oninput="updateThreshold(this.value)">
                     </div>
                     <div class="flex items-center justify-between pt-2 border-t border-tactical-700">
-                        <span class="text-xs text-slate-300">強制麥克風權限啟用</span>
+                        <span class="text-xs text-slate-300">啟用麥克風進行監聽</span>
                         <button onclick="initAudioContext()" class="bg-tactical-600 hover:bg-tactical-500 text-xs px-3 py-1.5 rounded-lg font-semibold text-white transition">
-                            啟用音訊監聽
+                            <i class="fa-solid fa-microphone mr-1"></i>啟動麥克風
                         </button>
                     </div>
                 </div>
@@ -164,9 +167,9 @@
                         </div>
                     </div>
                     <div class="flex items-center justify-between pt-2 border-t border-tactical-700 text-xs text-slate-400">
-                        <span>蜂鳴音量 / 測試</span>
+                        <span>IPSC 手持計時器蜂鳴測試 (2.8kHz)</span>
                         <button onclick="playBuzzerSound()" class="bg-tactical-600 hover:bg-tactical-500 text-xs px-3 py-1.5 rounded-lg font-semibold text-white transition">
-                            <i class="fa-solid fa-volume-high mr-1"></i> 試聽蜂鳴器
+                            <i class="fa-solid fa-volume-high mr-1"></i> 測試高分貝蜂鳴
                         </button>
                     </div>
                 </div>
@@ -188,13 +191,24 @@
 
         <!-- TAB 2: TARGET SCORING -->
         <section id="tab-scoring" class="space-y-6 hidden">
-            <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+            <!-- Shooter Signature / ID Input (Feature Request 1) -->
+            <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-4 shadow-lg flex items-center gap-3">
+                <div class="text-tactical-red text-lg pl-2">
+                    <i class="fa-solid fa-id-card"></i>
+                </div>
+                <div class="flex-1">
+                    <label class="block text-[11px] text-slate-400 font-semibold mb-1">射手姓名 / 代號 (Shooter Name / ID)</label>
+                    <input type="text" id="shooter-name-input" placeholder="例如：Shooter #01 - Alex" class="w-full bg-tactical-900 border border-tactical-600 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-tactical-red font-medium">
+                </div>
+            </div>
+
+            <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                         <h2 class="text-base font-bold text-white flex items-center">
-                            <i class="fa-solid fa-camera text-tactical-red mr-2"></i> 靶紙影像擷取與彈孔標記
+                            <i class="fa-solid fa-camera text-tactical-red mr-2"></i> 靶紙畫面擷取與相機標記
                         </h2>
-                        <p class="text-xs text-slate-400">使用相機預覽或上傳靶紙照片，在畫面上標記彈孔計算 Hit Factor。</p>
+                        <p class="text-xs text-slate-400">開啟相機拍攝靶紙後定格，選擇下方彈孔區域並在圖片上點擊進行精準標記。</p>
                     </div>
                     <div class="flex gap-2 w-full sm:w-auto">
                         <button onclick="startCamera()" class="flex-1 sm:flex-none bg-tactical-red hover:bg-tactical-redHover text-white text-xs px-4 py-2 rounded-xl font-bold transition">
@@ -207,9 +221,33 @@
                     </div>
                 </div>
 
-                <!-- Camera Stream & Canvas Area -->
-                <div id="camera-wrapper" class="relative bg-tactical-900 rounded-xl overflow-hidden border border-tactical-700 flex flex-col items-center justify-center min-h-[300px]">
-                    <video id="webcam" autoplay playsinline muted class="w-full max-h-[400px] object-cover hidden"></video>
+                <!-- Zone Selection Bar -->
+                <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-xs text-slate-400 font-semibold flex items-center">
+                        <i class="fa-solid fa-hand-pointer text-tactical-red mr-1.5"></i>選擇要標記的區域:
+                    </span>
+                    <div class="flex flex-wrap gap-1.5" id="zone-selector">
+                        <button onclick="selectZone('A')" id="zone-btn-A" class="zone-pill active bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/50 px-3 py-1 rounded-lg text-xs font-bold transition">
+                            A 區
+                        </button>
+                        <button onclick="selectZone('C')" id="zone-btn-C" class="zone-pill bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 border border-amber-500/50 px-3 py-1 rounded-lg text-xs font-bold transition">
+                            C 區
+                        </button>
+                        <button onclick="selectZone('D')" id="zone-btn-D" class="zone-pill bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 border border-orange-500/50 px-3 py-1 rounded-lg text-xs font-bold transition">
+                            D 區
+                        </button>
+                        <button onclick="selectZone('M')" id="zone-btn-M" class="zone-pill bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/50 px-3 py-1 rounded-lg text-xs font-bold transition">
+                            Miss
+                        </button>
+                        <button onclick="selectZone('NS')" id="zone-btn-NS" class="zone-pill bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 border border-purple-500/50 px-3 py-1 rounded-lg text-xs font-bold transition">
+                            No-Shoot
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Camera Stream & Interactive Canvas Container -->
+                <div id="camera-wrapper" class="relative bg-tactical-900 rounded-xl overflow-hidden border border-tactical-700 flex flex-col items-center justify-center min-h-[320px]">
+                    <video id="webcam" autoplay playsinline muted class="w-full max-h-[420px] object-cover hidden"></video>
                     <canvas id="target-canvas" class="w-full max-h-[450px] object-contain cursor-crosshair hidden" onclick="handleCanvasClick(event)"></canvas>
                     
                     <!-- Placeholder when inactive -->
@@ -217,86 +255,112 @@
                         <div class="w-16 h-16 bg-tactical-700 rounded-full flex items-center justify-center mx-auto text-slate-400 text-2xl">
                             <i class="fa-solid fa-bullseye"></i>
                         </div>
-                        <p class="text-xs text-slate-400">點擊「開啟相機」或「上傳照片」以開始進行彈孔點擊與計分</p>
+                        <p class="text-xs text-slate-400">點擊「開啟相機」拍攝或「上傳照片」，照片定格後即可在上面點擊標記彈孔</p>
                     </div>
 
                     <!-- Capture Photo Button overlay if camera is active -->
                     <div id="camera-controls" class="absolute bottom-4 left-0 right-0 flex justify-center hidden">
-                        <button onclick="captureCameraSnapshot()" class="bg-tactical-red text-white text-xs font-bold px-6 py-2.5 rounded-full shadow-lg border border-red-400 flex items-center">
-                            <i class="fa-solid fa-camera-retro mr-2"></i> 拍攝靶紙畫面
+                        <button onclick="captureCameraSnapshot()" class="bg-tactical-red text-white text-xs font-bold px-6 py-2.5 rounded-full shadow-lg border border-red-400 flex items-center hover:bg-tactical-redHover transition">
+                            <i class="fa-solid fa-camera-retro mr-2"></i> 拍攝靶紙照片 (定格標記)
                         </button>
                     </div>
                 </div>
-                <div class="flex justify-between items-center mt-2 text-[11px] text-slate-400 font-mono">
-                    <span>提示：點擊畫面上彈孔位置可自動標記並累計分數</span>
-                    <button onclick="clearTargetMarks()" class="text-tactical-red hover:underline"><i class="fa-solid fa-rotate-right mr-1"></i>重設標記</button>
+
+                <div class="flex justify-between items-center text-[11px] text-slate-400 font-mono">
+                    <span>提示：相機凍結畫面後可連續點擊進行多次彈孔標記</span>
+                    <div class="space-x-3">
+                        <button onclick="undoLastMark()" class="text-slate-300 hover:text-white"><i class="fa-solid fa-rotate-left mr-1"></i>復原最後標記</button>
+                        <button onclick="clearTargetMarks()" class="text-tactical-red hover:underline"><i class="fa-solid fa-trash mr-1"></i>清空所有標記</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Scoring Breakdown & Hit Factor Calculation -->
+            <!-- Scoring Breakdown & Formulas -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Hit Breakdown -->
+                <!-- Target Hit Tallies -->
                 <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg space-y-4">
-                    <h3 class="text-sm font-bold text-slate-200 flex items-center">
-                        <i class="fa-solid fa-calculator text-tactical-red mr-2"></i> 靶紙環數統計 (IPSC Target)
-                    </h3>
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-bold text-slate-200 flex items-center">
+                            <i class="fa-solid fa-calculator text-tactical-red mr-2"></i> 照片實際標記環數統計
+                        </h3>
+                        <span id="power-factor-badge" class="text-[10px] bg-tactical-700 border border-tactical-600 px-2 py-0.5 rounded text-amber-400 font-bold">Minor 輕裝組</span>
+                    </div>
+
                     <div class="grid grid-cols-3 gap-2 text-center">
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">A 區 (5分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold">A 區 (<span id="score-val-a">5</span>分)</div>
                             <div id="count-a" class="font-digit text-xl font-bold text-emerald-400">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">C 區 (3/4分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold">C 區 (<span id="score-val-c">3</span>分)</div>
                             <div id="count-c" class="font-digit text-xl font-bold text-amber-400">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">D 區 (1/2分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold">D 區 (<span id="score-val-d">1</span>分)</div>
                             <div id="count-d" class="font-digit text-xl font-bold text-orange-400">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">Miss (0分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold">Miss (<span id="score-val-m">-10</span>分)</div>
                             <div id="count-miss" class="font-digit text-xl font-bold text-rose-500">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">Procedural</div>
-                            <div id="count-proc" class="font-digit text-xl font-bold text-purple-400">0</div>
+                            <div class="text-[10px] text-slate-400 font-bold">No-Shoot (<span id="score-val-ns">-10</span>分)</div>
+                            <div id="count-ns" class="font-digit text-xl font-bold text-purple-400">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">總積分</div>
-                            <div id="total-score" class="font-digit text-xl font-bold text-white">0</div>
+                            <div class="text-[10px] text-slate-400 font-bold">Procedural (<span id="score-val-p">-10</span>分)</div>
+                            <div id="count-proc" class="font-digit text-xl font-bold text-indigo-400">0</div>
                         </div>
                     </div>
-                    <!-- Manual Scoring Modifier Buttons -->
-                    <div class="grid grid-cols-5 gap-1 pt-2">
-                        <button onclick="addHit('A')" class="bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-600/50 py-2 rounded-lg text-xs font-bold">+ A</button>
-                        <button onclick="addHit('C')" class="bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 border border-amber-600/50 py-2 rounded-lg text-xs font-bold">+ C</button>
-                        <button onclick="addHit('D')" class="bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 border border-orange-600/50 py-2 rounded-lg text-xs font-bold">+ D</button>
-                        <button onclick="addHit('M')" class="bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-600/50 py-2 rounded-lg text-xs font-bold">+ M</button>
-                        <button onclick="addHit('P')" class="bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 border border-purple-600/50 py-2 rounded-lg text-xs font-bold">+ P</button>
+
+                    <!-- Custom Penalty & Procedural Adjustment -->
+                    <div class="flex items-center justify-between bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl text-xs">
+                        <span class="text-slate-300 font-semibold">程序犯規罰分 (Procedural):</span>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="changeProcedural(-1)" class="w-7 h-7 bg-tactical-700 hover:bg-tactical-600 rounded-lg text-slate-200 font-bold">-</button>
+                            <span id="proc-val-display" class="font-digit font-bold text-white px-2">0</span>
+                            <button onclick="changeProcedural(1)" class="w-7 h-7 bg-tactical-700 hover:bg-tactical-600 rounded-lg text-slate-200 font-bold">+</button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Hit Factor Result -->
+                <!-- Formula Breakdown & Custom Settings -->
                 <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg flex flex-col justify-between space-y-4">
-                    <h3 class="text-sm font-bold text-slate-200 flex items-center">
-                        <i class="fa-solid fa-trophy text-tactical-red mr-2"></i> Hit Factor 計算結果
-                    </h3>
-                    <div class="space-y-3 bg-tactical-900 p-4 rounded-xl border border-tactical-700">
-                        <div class="flex justify-between text-xs text-slate-300">
-                            <span>計時器所用時間 (Time):</span>
-                            <span id="hf-time-display" class="font-digit font-bold text-white">0.00 秒</span>
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-bold text-slate-200 flex items-center">
+                                <i class="fa-solid fa-square-root-variable text-tactical-red mr-2"></i> 計分與 Hit Factor 計算公式
+                            </h3>
+                            <button onclick="openFormulaModal()" class="text-xs bg-tactical-700 hover:bg-tactical-600 text-tactical-red border border-tactical-600 px-2.5 py-1 rounded-lg font-bold transition">
+                                <i class="fa-solid fa-gear mr-1"></i>修改公式設定
+                            </button>
                         </div>
-                        <div class="flex justify-between text-xs text-slate-300">
-                            <span>總得分 (Points):</span>
-                            <span id="hf-points-display" class="font-digit font-bold text-white">0 分</span>
+
+                        <!-- Display Exact Formula -->
+                        <div class="bg-tactical-900 border border-tactical-700 p-3 rounded-xl text-[11px] font-mono text-slate-300 space-y-1.5">
+                            <div class="text-slate-400">計分公式說明:</div>
+                            <div class="text-emerald-400 font-bold">Points = (A×Pa) + (C×Pc) + (D×Pd) - (M×Pm) - (NS×Pns) - (P×Pp)</div>
+                            <div class="text-amber-400 font-bold">Hit Factor (HF) = Total Points / Time (秒)</div>
                         </div>
-                        <div class="border-t border-tactical-700 pt-2 flex justify-between items-center">
-                            <span class="text-xs font-bold text-tactical-red">Hit Factor (HF):</span>
-                            <span id="hf-result-display" class="font-digit text-2xl font-black text-white">0.0000</span>
+
+                        <div class="space-y-2 bg-tactical-900 p-3 rounded-xl border border-tactical-700 mt-3">
+                            <div class="flex justify-between text-xs text-slate-300">
+                                <span>測量時間 (Time):</span>
+                                <span id="hf-time-display" class="font-digit font-bold text-white">0.00 秒</span>
+                            </div>
+                            <div class="flex justify-between text-xs text-slate-300">
+                                <span>靶紙累積總得分 (Points):</span>
+                                <span id="hf-points-display" class="font-digit font-bold text-white">0 分</span>
+                            </div>
+                            <div class="border-t border-tactical-700 pt-2 flex justify-between items-center">
+                                <span class="text-xs font-bold text-tactical-red">Hit Factor (HF):</span>
+                                <span id="hf-result-display" class="font-digit text-2xl font-black text-white">0.0000</span>
+                            </div>
                         </div>
                     </div>
+
                     <button onclick="saveCurrentSession()" class="w-full bg-tactical-red hover:bg-tactical-redHover text-white py-3 rounded-xl font-bold text-sm shadow-lg transition active:scale-95 flex items-center justify-center">
-                        <i class="fa-solid fa-floppy-disk mr-2"></i> 儲存本局練習紀錄
+                        <i class="fa-solid fa-floppy-disk mr-2"></i> 儲存本局射擊與靶紙成績
                     </button>
                 </div>
             </div>
@@ -305,13 +369,19 @@
         <!-- TAB 3: HISTORY & STATS -->
         <section id="tab-history" class="space-y-6 hidden">
             <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg">
-                <div class="flex justify-between items-center mb-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                     <h2 class="text-base font-bold text-white flex items-center">
                         <i class="fa-solid fa-clock-rotate-left text-tactical-red mr-2"></i> 歷史練習紀錄 (Session History)
                     </h2>
-                    <button onclick="clearHistory()" class="text-xs text-slate-400 hover:text-tactical-red transition">
-                        <i class="fa-solid fa-trash mr-1"></i> 清空紀錄
-                    </button>
+                    <div class="flex gap-2 w-full sm:w-auto">
+                        <!-- CSV Export Button (Feature Request 2) -->
+                        <button onclick="exportToCSV()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-xl font-bold shadow-md transition flex items-center justify-center">
+                            <i class="fa-solid fa-file-csv mr-1.5 text-sm"></i> 匯出 CSV 檔案
+                        </button>
+                        <button onclick="clearHistory()" class="text-xs text-slate-400 hover:text-tactical-red border border-tactical-700 px-3 py-2 rounded-xl transition">
+                            <i class="fa-solid fa-trash mr-1"></i> 清空紀錄
+                        </button>
+                    </div>
                 </div>
                 <div id="history-container" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                     <div class="text-center text-xs text-slate-500 py-12 font-mono">尚無儲存的紀錄，快去完成一場射擊練習吧！</div>
@@ -321,7 +391,66 @@
 
     </main>
 
-    <!-- Custom Notification Modal (Replacement for alert) -->
+    <!-- Custom Formula Customization Modal -->
+    <div id="modal-formula" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-tactical-700 pb-3">
+                <h3 class="font-bold text-white text-base flex items-center">
+                    <i class="fa-solid fa-sliders text-tactical-red mr-2"></i> 客製化賽事計分分值與公式設定
+                </h3>
+                <button onclick="closeFormulaModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <!-- Major / Minor Quick Presets -->
+            <div class="space-y-2">
+                <label class="text-xs text-slate-400 font-semibold">快速套用 IPSC 預設組別:</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="applyPreset('minor')" class="bg-tactical-700 hover:bg-tactical-600 text-xs py-2 rounded-lg text-slate-200 border border-tactical-600 font-bold transition">
+                        Minor (輕裝: A:5, C:3, D:1)
+                    </button>
+                    <button onclick="applyPreset('major')" class="bg-tactical-700 hover:bg-tactical-600 text-xs py-2 rounded-lg text-slate-200 border border-tactical-600 font-bold transition">
+                        Major (重裝: A:5, C:4, D:2)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Custom Point Inputs -->
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1">A 區分值</label>
+                    <input type="number" id="input-pa" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">C 區分值</label>
+                    <input type="number" id="input-pc" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">D 區分值</label>
+                    <input type="number" id="input-pd" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Miss 倒扣分</label>
+                    <input type="number" id="input-pm" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">No-Shoot 倒扣分</label>
+                    <input type="number" id="input-pns" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Procedural 倒扣分</label>
+                    <input type="number" id="input-pp" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
+                </div>
+            </div>
+
+            <div class="pt-2 flex gap-2">
+                <button onclick="saveFormulaSettings()" class="flex-1 bg-tactical-red hover:bg-tactical-redHover text-white py-2.5 rounded-xl font-bold text-xs transition">
+                    <i class="fa-solid fa-floppy-disk mr-1"></i>儲存並記憶設定
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Alert Notification Modal -->
     <div id="modal-alert" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 text-center">
             <div id="modal-icon" class="w-12 h-12 rounded-full bg-tactical-red/20 text-tactical-red flex items-center justify-center mx-auto text-xl">
@@ -337,20 +466,19 @@
         </div>
     </div>
 
-    <!-- Footer / Credit -->
+    <!-- Footer -->
     <footer class="bg-tactical-800 border-t border-tactical-600 text-center py-3 text-[11px] text-slate-500 font-mono">
-        IPSC Shot Timer & Scoring Web App &copy; 2026 | Tactical Edition
+        IPSC Shot Timer & Target Scoring Web App &copy; 2026 | Tactical Professional
     </footer>
 
     <!-- JavaScript Logic -->
     <script>
-        // --- State Variables ---
+        // --- State & Settings Variables ---
         let currentTab = 'timer';
         let audioCtx = null;
         let analyser = null;
         let microphone = null;
         let javascriptNode = null;
-        let isListening = false;
         let timerRunning = false;
         let startTime = 0;
         let timerInterval = null;
@@ -358,16 +486,49 @@
         let threshold = 35;
         let lastShotTime = 0;
 
-        // Target Scoring State
-        let hitCounts = { A: 0, C: 0, D: 0, M: 0, P: 0 };
-        let targetMarks = []; // {x, y, type}
-        let currentImageObj = null;
+        // Custom Scoring Formula Rules & Values (Saved in LocalStorage)
+        let scoringRules = {
+            Pa: 5,   // Point A
+            Pc: 3,   // Point C
+            Pd: 1,   // Point D
+            Pm: 10,  // Penalty Miss
+            Pns: 10, // Penalty No-Shoot
+            Pp: 10,  // Penalty Procedural
+            preset: 'minor'
+        };
+
+        // Target Canvas & Marking State
+        let selectedZone = 'A'; // Active zone tool: 'A', 'C', 'D', 'M', 'NS'
+        let targetMarks = []; // Array of objects {x, y, type}
+        let hitCounts = { A: 0, C: 0, D: 0, M: 0, NS: 0, P: 0 };
+        let frozenTargetImage = null; // Stored frozen image Data URL or Image Element
         let cameraStream = null;
 
-        // History State
+        // History
         let sessionHistory = JSON.parse(localStorage.getItem('ipsc_history') || '[]');
 
-        // --- Tab Navigation ---
+        // Load Saved Settings
+        function loadSavedSettings() {
+            const savedRules = localStorage.getItem('ipsc_scoring_rules');
+            if (savedRules) {
+                try {
+                    scoringRules = JSON.parse(savedRules);
+                } catch(e) {}
+            }
+            const savedThreshold = localStorage.getItem('ipsc_threshold');
+            if (savedThreshold) {
+                threshold = parseInt(savedThreshold);
+                document.getElementById('threshold-slider').value = threshold;
+                document.getElementById('threshold-val').innerText = threshold;
+            }
+            const savedShooterName = localStorage.getItem('ipsc_last_shooter');
+            if (savedShooterName) {
+                document.getElementById('shooter-name-input').value = savedShooterName;
+            }
+            updateFormulaUI();
+        }
+
+        // Navigation
         function switchTab(tabId) {
             currentTab = tabId;
             ['timer', 'scoring', 'history'].forEach(id => {
@@ -377,15 +538,12 @@
             document.getElementById(`tab-${tabId}`).classList.remove('hidden');
             document.getElementById(`nav-${tabId}`).className = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-tactical-red text-white shadow";
 
-            if (tabId === 'scoring') {
-                initCanvas();
-            }
             if (tabId === 'history') {
                 renderHistory();
             }
         }
 
-        // --- Custom Modal ---
+        // Modals
         function showModal(title, message, isError = false) {
             document.getElementById('modal-title').innerText = title;
             document.getElementById('modal-message').innerText = message;
@@ -404,7 +562,91 @@
             document.getElementById('modal-alert').classList.add('hidden');
         }
 
-        // --- Audio Context & Buzzer Generator ---
+        function openFormulaModal() {
+            document.getElementById('input-pa').value = scoringRules.Pa;
+            document.getElementById('input-pc').value = scoringRules.Pc;
+            document.getElementById('input-pd').value = scoringRules.Pd;
+            document.getElementById('input-pm').value = scoringRules.Pm;
+            document.getElementById('input-pns').value = scoringRules.Pns;
+            document.getElementById('input-pp').value = scoringRules.Pp;
+            document.getElementById('modal-formula').classList.remove('hidden');
+        }
+
+        function closeFormulaModal() {
+            document.getElementById('modal-formula').classList.add('hidden');
+        }
+
+        function applyPreset(presetType) {
+            if (presetType === 'minor') {
+                scoringRules = { Pa: 5, Pc: 3, Pd: 1, Pm: 10, Pns: 10, Pp: 10, preset: 'minor' };
+            } else {
+                scoringRules = { Pa: 5, Pc: 4, Pd: 2, Pm: 10, Pns: 10, Pp: 10, preset: 'major' };
+            }
+            openFormulaModal();
+        }
+
+        function saveFormulaSettings() {
+            scoringRules.Pa = parseInt(document.getElementById('input-pa').value) || 0;
+            scoringRules.Pc = parseInt(document.getElementById('input-pc').value) || 0;
+            scoringRules.Pd = parseInt(document.getElementById('input-pd').value) || 0;
+            scoringRules.Pm = parseInt(document.getElementById('input-pm').value) || 0;
+            scoringRules.Pns = parseInt(document.getElementById('input-pns').value) || 0;
+            scoringRules.Pp = parseInt(document.getElementById('input-pp').value) || 0;
+
+            localStorage.setItem('ipsc_scoring_rules', JSON.stringify(scoringRules));
+            updateFormulaUI();
+            closeFormulaModal();
+            showModal("計分設定已儲存", "新的計分公式與分值設定已成功寫入記憶！");
+        }
+
+        function updateFormulaUI() {
+            document.getElementById('score-val-a').innerText = scoringRules.Pa;
+            document.getElementById('score-val-c').innerText = scoringRules.Pc;
+            document.getElementById('score-val-d').innerText = scoringRules.Pd;
+            document.getElementById('score-val-m').innerText = `-${scoringRules.Pm}`;
+            document.getElementById('score-val-ns').innerText = `-${scoringRules.Pns}`;
+            document.getElementById('score-val-p').innerText = `-${scoringRules.Pp}`;
+
+            const badge = document.getElementById('power-factor-badge');
+            if (scoringRules.preset === 'major') {
+                badge.innerText = "Major 重裝組";
+                badge.className = "text-[10px] bg-tactical-700 border border-tactical-600 px-2 py-0.5 rounded text-rose-400 font-bold";
+            } else {
+                badge.innerText = "Minor 輕裝組";
+                badge.className = "text-[10px] bg-tactical-700 border border-tactical-600 px-2 py-0.5 rounded text-amber-400 font-bold";
+            }
+
+            calculateHitFactor();
+        }
+
+        // IPSC Handheld Shot Timer Buzzer (2.8kHz)
+        function playBuzzerSound() {
+            if (!audioCtx) {
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(2850, audioCtx.currentTime);
+
+            gainNode.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.8, audioCtx.currentTime + 0.35);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.38);
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.38);
+        }
+
+        // Audio Listening & Oscilloscope
         async function initAudioContext() {
             try {
                 window.AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -422,47 +664,18 @@
                 analyser.connect(javascriptNode);
                 javascriptNode.connect(audioCtx.destination);
 
-                isListening = true;
                 document.getElementById('mic-status-dot').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2 inline-block animate-pulse";
-                showModal("麥克風已就緒", "音訊監聽與槍聲偵測系統已成功啟動！");
+                showModal("麥克風已就緒", "槍聲偵測系統已連線。");
                 startOscilloscope();
             } catch (err) {
                 console.error(err);
-                showModal("麥克風權限失敗", "無法存取麥克風，請確認瀏覽器權限設定。模擬模式仍可使用手動紀錄。", true);
-                document.getElementById('mic-status-dot').className = "w-2.5 h-2.5 rounded-full bg-rose-500 mr-2 inline-block";
+                showModal("麥克風啟用失敗", "無法讀取音訊，請確認權限。", true);
             }
         }
 
-        function playBuzzerSound() {
-            if (!audioCtx) {
-                window.AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioCtx = new AudioContext();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(950, audioCtx.currentTime); // High pitch buzzer
-
-            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.3);
-        }
-
-        // --- Oscilloscope Waveform ---
         function startOscilloscope() {
             const canvas = document.getElementById('oscilloscope');
             const canvasCtx = canvas.getContext('2d');
-            
-            // Set canvas resolution
             canvas.width = canvas.parentElement.clientWidth;
             canvas.height = 64;
 
@@ -492,37 +705,28 @@
                     const v = dataArray[i] / 128.0;
                     const y = v * canvas.height / 2;
 
-                    if (i === 0) {
-                        canvasCtx.moveTo(x, y);
-                    } else {
-                        canvasCtx.lineTo(x, y);
-                    }
+                    if (i === 0) canvasCtx.moveTo(x, y);
+                    else canvasCtx.lineTo(x, y);
                     x += sliceWidth;
                 }
-
                 canvasCtx.lineTo(canvas.width, canvas.height / 2);
                 canvasCtx.stroke();
             }
             draw();
         }
 
-        // --- Shot Detection Algorithm ---
         function processAudioStream(event) {
             if (!timerRunning) return;
-
             const inputBuffer = event.inputBuffer.getChannelData(0);
             let maxVal = 0;
             for (let i = 0; i < inputBuffer.length; i++) {
                 const val = Math.abs(inputBuffer[i]);
                 if (val > maxVal) maxVal = val;
             }
-
-            // Convert to decibel-like scale 0-100
             const currentVolume = Math.floor(maxVal * 100);
-
-            // Check against threshold with debounce (min 0.15s between shots)
             const now = (performance.now() - startTime) / 1000;
-            if (currentVolume >= threshold && (now - lastShotTime > 0.15)) {
+
+            if (currentVolume >= threshold && (now - lastShotTime > 0.12)) {
                 registerShot(now);
             }
         }
@@ -530,9 +734,10 @@
         function updateThreshold(val) {
             threshold = parseInt(val);
             document.getElementById('threshold-val').innerText = threshold;
+            localStorage.setItem('ipsc_threshold', threshold);
         }
 
-        // --- Timer Flow ---
+        // Shot Timer Flow
         function startCountdown() {
             if (!audioCtx) {
                 initAudioContext();
@@ -542,12 +747,8 @@
 
             const delayType = document.getElementById('start-delay-type').value;
             let delay = 0.5;
-
-            if (delayType === 'random') {
-                delay = 1.0 + Math.random() * 3.0; // 1 to 4 seconds
-            } else if (delayType === 'fixed') {
-                delay = 3.0;
-            }
+            if (delayType === 'random') delay = 1.0 + Math.random() * 3.0;
+            else if (delayType === 'fixed') delay = 3.0;
 
             document.getElementById('timer-state-badge').className = "px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-black animate-pulse";
             document.getElementById('timer-state-badge').innerText = "預備起跑...";
@@ -573,11 +774,9 @@
                 const elapsed = (performance.now() - startTime) / 1000;
                 document.getElementById('main-time-display').innerText = elapsed.toFixed(2);
 
-                // Check Par Time
                 const parTime = parseFloat(document.getElementById('par-time-input').value);
                 if (parTime > 0 && elapsed >= parTime) {
                     playBuzzerSound();
-                    // Clear par time to avoid repeated beeps
                     document.getElementById('par-time-input').value = 0;
                 }
             }, 30);
@@ -586,15 +785,11 @@
         function registerShot(timeSec) {
             lastShotTime = timeSec;
             shots.push(timeSec);
-            
             const split = shots.length === 1 ? timeSec : (shots[shots.length - 1] - shots[shots.length - 2]);
             
             document.getElementById('shot-count-badge').innerText = `${shots.length} 槍`;
-            
             const container = document.getElementById('splits-container');
-            if (shots.length === 1) {
-                container.innerHTML = ''; // clear placeholder
-            }
+            if (shots.length === 1) container.innerHTML = '';
 
             const shotRow = document.createElement('div');
             shotRow.className = "flex justify-between items-center bg-tactical-900 border border-tactical-700 px-3 py-2 rounded-xl text-xs font-mono";
@@ -614,14 +809,12 @@
             document.getElementById('timer-state-badge').innerText = "已停止 / 結算";
             document.getElementById('btn-start-ready').disabled = false;
 
-            // Update scoring tab time display
             const finalTime = parseFloat(document.getElementById('main-time-display').innerText);
             document.getElementById('hf-time-display').innerText = finalTime.toFixed(2) + " 秒";
             calculateHitFactor();
         }
 
-
-        // --- Target Scoring & Camera Module ---
+        // Camera Capture Freeze & Zone Marking
         async function startCamera() {
             try {
                 const videoEl = document.getElementById('webcam');
@@ -637,7 +830,7 @@
                 controls.classList.remove('hidden');
             } catch (err) {
                 console.error(err);
-                showModal("相機啟動失敗", "無法存取裝置相機，請使用上傳照片功能。", true);
+                showModal("相機啟動失敗", "請選取「上傳照片」功能以進行靶紙標記。", true);
             }
         }
 
@@ -651,15 +844,18 @@
             const ctx = canvasEl.getContext('2d');
             ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
 
-            // Stop camera stream
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => track.stop());
-            }
-
-            videoEl.classList.add('hidden');
-            controls.classList.add('hidden');
-            canvasEl.classList.remove('hidden');
-            currentImageObj = canvasEl;
+            const img = new Image();
+            img.src = canvasEl.toDataURL('image/png');
+            img.onload = function() {
+                frozenTargetImage = img;
+                if (cameraStream) {
+                    cameraStream.getTracks().forEach(track => track.stop());
+                }
+                videoEl.classList.add('hidden');
+                controls.classList.add('hidden');
+                canvasEl.classList.remove('hidden');
+                redrawCanvasMarks();
+            };
         }
 
         function handleImageUpload(event) {
@@ -681,22 +877,23 @@
 
                     canvasEl.width = img.width;
                     canvasEl.height = img.height;
-                    const ctx = canvasEl.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-                    currentImageObj = img;
+                    frozenTargetImage = img;
+                    clearTargetMarks();
                 }
                 img.src = e.target.result;
             }
             reader.readAsDataURL(file);
         }
 
-        function initCanvas() {
-            // Setup canvas if needed
+        function selectZone(zone) {
+            selectedZone = zone;
+            document.querySelectorAll('.zone-pill').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`zone-btn-${zone}`).classList.add('active');
         }
 
         function handleCanvasClick(event) {
             const canvas = document.getElementById('target-canvas');
-            if (canvas.classList.contains('hidden')) return;
+            if (!frozenTargetImage || canvas.classList.contains('hidden')) return;
 
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
@@ -704,53 +901,74 @@
             const x = (event.clientX - rect.left) * scaleX;
             const y = (event.clientY - rect.top) * scaleY;
 
-            // Default click adds an 'A' hit, or cycle through A, C, D, M prompt
-            // For simplicity, let's open a quick selector or default to A
-            addHit('A');
-            targetMarks.push({ x, y, type: 'A' });
+            targetMarks.push({ x, y, type: selectedZone });
+            recalculateMarksFromCanvas();
             redrawCanvasMarks();
+        }
+
+        function undoLastMark() {
+            if (targetMarks.length > 0) {
+                targetMarks.pop();
+                recalculateMarksFromCanvas();
+                redrawCanvasMarks();
+            }
+        }
+
+        function clearTargetMarks() {
+            targetMarks = [];
+            hitCounts.P = 0;
+            document.getElementById('proc-val-display').innerText = 0;
+            recalculateMarksFromCanvas();
+            redrawCanvasMarks();
+        }
+
+        function recalculateMarksFromCanvas() {
+            hitCounts.A = targetMarks.filter(m => m.type === 'A').length;
+            hitCounts.C = targetMarks.filter(m => m.type === 'C').length;
+            hitCounts.D = targetMarks.filter(m => m.type === 'D').length;
+            hitCounts.M = targetMarks.filter(m => m.type === 'M').length;
+            hitCounts.NS = targetMarks.filter(m => m.type === 'NS').length;
+
+            updateScoringUI();
         }
 
         function redrawCanvasMarks() {
             const canvas = document.getElementById('target-canvas');
-            if (!canvas || canvas.classList.contains('hidden')) return;
+            if (!canvas || !frozenTargetImage) return;
+
             const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(frozenTargetImage, 0, 0, canvas.width, canvas.height);
 
-            // Redraw base image if available
-            if (currentImageObj) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                if (currentImageObj instanceof HTMLImageElement || currentImageObj instanceof HTMLCanvasElement) {
-                    ctx.drawImage(currentImageObj, 0, 0);
-                }
-            }
-
-            // Draw marks
-            targetMarks.forEach((mark, idx) => {
+            targetMarks.forEach((mark) => {
                 ctx.beginPath();
-                ctx.arc(mark.x, mark.y, 15, 0, 2 * Math.PI);
-                ctx.fillStyle = mark.type === 'A' ? 'rgba(16, 185, 129, 0.7)' : 'rgba(245, 158, 11, 0.7)';
+                ctx.arc(mark.x, mark.y, Math.max(canvas.width * 0.02, 14), 0, 2 * Math.PI);
+
+                let color = '#10b981'; // Green A
+                if (mark.type === 'C') color = '#f59e0b'; // Amber C
+                if (mark.type === 'D') color = '#f97316'; // Orange D
+                if (mark.type === 'M') color = '#f43f5e'; // Red Miss
+                if (mark.type === 'NS') color = '#a855f7'; // Purple No-Shoot
+
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.8;
                 ctx.fill();
+                ctx.globalAlpha = 1.0;
                 ctx.lineWidth = 3;
                 ctx.strokeStyle = '#ffffff';
                 ctx.stroke();
 
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 14px Inter';
+                ctx.font = 'bold 13px Orbitron, Inter';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(mark.type, mark.x, mark.y);
             });
         }
 
-        function addHit(type) {
-            hitCounts[type]++;
-            updateScoringUI();
-        }
-
-        function clearTargetMarks() {
-            hitCounts = { A: 0, C: 0, D: 0, M: 0, P: 0 };
-            targetMarks = [];
-            redrawCanvasMarks();
+        function changeProcedural(delta) {
+            hitCounts.P = Math.max(0, hitCounts.P + delta);
+            document.getElementById('proc-val-display').innerText = hitCounts.P;
             updateScoringUI();
         }
 
@@ -759,48 +977,58 @@
             document.getElementById('count-c').innerText = hitCounts.C;
             document.getElementById('count-d').innerText = hitCounts.D;
             document.getElementById('count-miss').innerText = hitCounts.M;
+            document.getElementById('count-ns').innerText = hitCounts.NS;
             document.getElementById('count-proc').innerText = hitCounts.P;
-
-            // Calculate Total Score (IPSC Minor Scoring: A=5, C=3, D=1, Miss=0, Penalty=-10 per procedural)
-            let totalPoints = (hitCounts.A * 5) + (hitCounts.C * 3) + (hitCounts.D * 1) - (hitCounts.P * 10);
-            if (totalPoints < 0) totalPoints = 0;
-
-            document.getElementById('total-score').innerText = totalPoints;
-            document.getElementById('hf-points-display').innerText = totalPoints + " 分";
 
             calculateHitFactor();
         }
 
         function calculateHitFactor() {
             const timeText = document.getElementById('hf-time-display').innerText;
-            const time = parseFloat(timeText) || 0.01;
-            let totalPoints = (hitCounts.A * 5) + (hitCounts.C * 3) + (hitCounts.D * 1) - (hitCounts.P * 10);
+            const time = parseFloat(timeText) || 0;
+
+            let totalPoints = (hitCounts.A * scoringRules.Pa) +
+                              (hitCounts.C * scoringRules.Pc) +
+                              (hitCounts.D * scoringRules.Pd) -
+                              (hitCounts.M * scoringRules.Pm) -
+                              (hitCounts.NS * scoringRules.Pns) -
+                              (hitCounts.P * scoringRules.Pp);
+
             if (totalPoints < 0) totalPoints = 0;
 
+            document.getElementById('hf-points-display').innerText = totalPoints + " 分";
             const hitFactor = time > 0 ? (totalPoints / time) : 0;
             document.getElementById('hf-result-display').innerText = hitFactor.toFixed(4);
         }
 
-
-        // --- History & Persistence ---
+        // Session History & Shooter Signature (Feature Request 1)
         function saveCurrentSession() {
+            const shooterName = document.getElementById('shooter-name-input').value.trim() || '未署名射手';
+            localStorage.setItem('ipsc_last_shooter', shooterName);
+
             const timeText = document.getElementById('hf-time-display').innerText;
-            const totalPoints = parseInt(document.getElementById('total-score').innerText) || 0;
+            const timeVal = parseFloat(timeText) || 0;
+            const totalPoints = parseInt(document.getElementById('hf-points-display').innerText) || 0;
             const hfText = document.getElementById('hf-result-display').innerText;
+
+            const totalShotsRecorded = shots.length > 0 ? shots.length : (hitCounts.A + hitCounts.C + hitCounts.D + hitCounts.M);
 
             const record = {
                 id: Date.now(),
+                shooter: shooterName,
                 date: new Date().toLocaleString(),
-                time: timeText,
+                time: timeVal.toFixed(2),
+                shotCount: totalShotsRecorded,
                 points: totalPoints,
                 hitFactor: hfText,
+                preset: scoringRules.preset === 'major' ? 'Major' : 'Minor',
                 hits: { ...hitCounts },
-                shotsCount: shots.length
+                rules: { ...scoringRules }
             };
 
             sessionHistory.unshift(record);
             localStorage.setItem('ipsc_history', JSON.stringify(sessionHistory));
-            showModal("儲存成功", "本局練習成績與 Hit Factor 已成功記錄至歷史！");
+            showModal("儲存成功", `射手 [${shooterName}] 的成績與彈孔紀錄已成功寫入歷史數據庫！`);
         }
 
         function renderHistory() {
@@ -814,24 +1042,105 @@
             sessionHistory.forEach((rec) => {
                 const card = document.createElement('div');
                 card.className = "bg-tactical-900 border border-tactical-700 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3";
+                
+                const pfClass = rec.preset === 'Major' ? 'text-rose-400 border-rose-500/40 bg-rose-500/10' : 'text-amber-400 border-amber-500/40 bg-amber-500/10';
+
                 card.innerHTML = `
-                    <div>
-                        <div class="text-[10px] text-slate-400 font-mono">${rec.date}</div>
-                        <div class="text-sm font-bold text-white mt-0.5">
-                            Hit Factor: <span class="text-tactical-red font-digit text-base">${rec.hitFactor}</span>
+                    <div class="space-y-1 w-full sm:w-auto">
+                        <div class="flex items-center justify-between sm:justify-start gap-2">
+                            <span class="text-sm font-bold text-white flex items-center">
+                                <i class="fa-solid fa-user-ninja text-tactical-red mr-1.5"></i> ${rec.shooter || '未署名射手'}
+                            </span>
+                            <span class="text-[10px] border px-2 py-0.5 rounded font-bold ${pfClass}">${rec.preset || 'Minor'}</span>
+                            <span class="text-[10px] text-slate-500 font-mono ml-auto sm:ml-2">${rec.date}</span>
                         </div>
-                        <div class="text-xs text-slate-400 mt-1 font-mono flex gap-3">
-                            <span>時間: ${rec.time}</span>
-                            <span>得分: ${rec.points}分</span>
-                            <span>A/C/D: ${rec.hits.A}/${rec.hits.C}/${rec.hits.D}</span>
+                        <div class="text-sm font-bold text-slate-200">
+                            Hit Factor (HF): <span class="text-tactical-red font-digit text-base">${rec.hitFactor}</span>
+                        </div>
+                        <div class="text-xs text-slate-400 font-mono flex flex-wrap gap-x-3 gap-y-1">
+                            <span>用時: <strong class="text-white">${rec.time}s</strong></span>
+                            <span>總分: <strong class="text-white">${rec.points}分</strong></span>
+                            <span>總發數: <strong class="text-white">${rec.shotCount || 0}發</strong></span>
+                        </div>
+                        <div class="text-[11px] text-slate-400 font-mono bg-tactical-800/80 p-2 rounded-lg border border-tactical-700/60 mt-2">
+                            <span class="text-emerald-400">A:${rec.hits.A}</span> | 
+                            <span class="text-amber-400">C:${rec.hits.C}</span> | 
+                            <span class="text-orange-400">D:${rec.hits.D}</span> | 
+                            <span class="text-rose-400">Miss:${rec.hits.M}</span> | 
+                            <span class="text-purple-400">NS:${rec.hits.NS}</span> | 
+                            <span class="text-indigo-400">P:${rec.hits.P}</span>
                         </div>
                     </div>
-                    <button onclick="deleteRecord(${rec.id})" class="text-slate-500 hover:text-rose-500 text-xs px-2.5 py-1.5 rounded-lg border border-tactical-700 hover:border-rose-500 transition">
+                    <button onclick="deleteRecord(${rec.id})" class="text-slate-500 hover:text-rose-500 text-xs px-2.5 py-1.5 rounded-lg border border-tactical-700 hover:border-rose-500 transition self-end sm:self-center">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 `;
                 container.appendChild(card);
             });
+        }
+
+        // CSV Export Tool (Feature Request 2)
+        function exportToCSV() {
+            if (sessionHistory.length === 0) {
+                showModal("無法匯出", "歷史紀錄庫中目前沒有任何成績資料。", true);
+                return;
+            }
+
+            // UTF-8 Byte Order Mark (BOM) to guarantee Traditional Chinese rendering in MS Excel
+            let csvContent = "\uFEFF";
+            
+            // Header Row
+            const headers = [
+                "射手姓名 (Shooter Name)",
+                "日期時間 (Timestamp)",
+                "賽制分級 (Power Factor)",
+                "總用時/秒 (Total Time/s)",
+                "總擊發數 (Shot Count)",
+                "A區數量 (A Zone)",
+                "C區數量 (C Zone)",
+                "D區數量 (D Zone)",
+                "脫靶數 (Misses)",
+                "擊中罰靶 (No-Shoot)",
+                "程序犯規 (Procedural)",
+                "總得分 (Total Points)",
+                "Hit Factor (HF)"
+            ];
+            
+            csvContent += headers.map(h => `"${h}"`).join(",") + "\r\n";
+
+            // Record Rows
+            sessionHistory.forEach(rec => {
+                const row = [
+                    rec.shooter || "未署名射手",
+                    rec.date,
+                    rec.preset || "Minor",
+                    rec.time,
+                    rec.shotCount || 0,
+                    rec.hits.A || 0,
+                    rec.hits.C || 0,
+                    rec.hits.D || 0,
+                    rec.hits.M || 0,
+                    rec.hits.NS || 0,
+                    rec.hits.P || 0,
+                    rec.points,
+                    rec.hitFactor
+                ];
+                csvContent += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",") + "\r\n";
+            });
+
+            // Trigger UTF-8 Download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            const fileName = `IPSC_Shooting_Records_${new Date().toISOString().slice(0,10)}.csv`;
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showModal("CSV 匯出成功", `已成功下載 ${sessionHistory.length} 筆練習成績匯出檔 (${fileName})。`);
         }
 
         function deleteRecord(id) {
@@ -846,8 +1155,9 @@
             renderHistory();
         }
 
-        // Initialize oscilloscope on load
+        // Initialize App & Load Saved Settings
         window.onload = function() {
+            loadSavedSettings();
             startOscilloscope();
         }
     </script>
