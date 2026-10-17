@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IPSC 專業戰術計時器與靶紙計分系統 Pro</title>
+    <title id="html-title">IPSC 專業戰術計時器與靶紙計分系統 Pro</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -60,28 +60,54 @@
 <body class="bg-tactical-900 min-h-screen text-slate-100 flex flex-col justify-between selection:bg-red-500 selection:text-white">
 
     <!-- Header -->
-    <header class="bg-tactical-800 border-b border-tactical-600 px-4 py-3 sticky top-0 z-50 flex items-center justify-between shadow-lg">
+    <header class="bg-tactical-800 border-b border-tactical-600 px-3 sm:px-4 py-2.5 sm:py-3 sticky top-0 z-50 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 shadow-lg">
         <div class="flex items-center space-x-2">
             <div class="bg-tactical-red text-white p-2 rounded-lg shadow-md flex items-center justify-center font-bold text-lg">
                 <i class="fa-solid fa-crosshairs"></i>
             </div>
             <div>
-                <h1 class="font-digit text-lg font-bold tracking-wider text-white">IPSC TIMER Pro</h1>
-                <p class="text-xs text-slate-400">Tactical Shot & Target Scoring System</p>
+                <h1 class="font-digit text-lg font-bold tracking-wider text-white" data-i18n="app_title">IPSC TIMER Pro</h1>
+                <p class="text-xs text-slate-400" data-i18n="app_subtitle">Tactical Shot & Target Scoring System</p>
             </div>
         </div>
-        <!-- Navigation Tabs -->
-        <nav class="flex space-x-1 bg-tactical-900 p-1 rounded-xl border border-tactical-600">
-            <button onclick="switchTab('timer')" id="nav-timer" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-tactical-red text-white shadow">
-                <i class="fa-solid fa-stopwatch mr-1"></i>計時器
-            </button>
-            <button onclick="switchTab('scoring')" id="nav-scoring" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
-                <i class="fa-solid fa-bullseye mr-1"></i>靶紙計分
-            </button>
-            <button onclick="switchTab('history')" id="nav-history" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
-                <i class="fa-solid fa-chart-line mr-1"></i>紀錄
-            </button>
-        </nav>
+
+        <div class="flex items-center space-x-2 ml-auto sm:ml-0">
+            <!-- Navigation Tabs -->
+            <nav class="flex space-x-1 bg-tactical-900 p-1 rounded-xl border border-tactical-600">
+                <button onclick="switchTab('timer')" id="nav-timer" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-tactical-red text-white shadow">
+                    <i class="fa-solid fa-stopwatch mr-1"></i><span data-i18n="nav_timer">計時器</span>
+                </button>
+                <button onclick="switchTab('scoring')" id="nav-scoring" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-bullseye mr-1"></i><span data-i18n="nav_scoring">靶紙計分</span>
+                </button>
+                <button onclick="switchTab('history')" id="nav-history" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-chart-line mr-1"></i><span data-i18n="nav_history">紀錄</span>
+                </button>
+            </nav>
+
+            <!-- Language Switcher Dropdown -->
+            <div class="relative" id="lang-dropdown-wrapper">
+                <button onclick="toggleLangDropdown(event)" id="current-lang-btn" class="flex items-center gap-1.5 bg-tactical-900 hover:bg-tactical-700 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-tactical-600 transition shadow">
+                    <i class="fa-solid fa-globe text-tactical-red"></i>
+                    <span id="current-lang-text">繁體中文</span>
+                    <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+                </button>
+                <div id="lang-dropdown-menu" class="hidden absolute right-0 mt-1.5 w-32 bg-tactical-800 border border-tactical-600 rounded-xl shadow-2xl py-1 z-50">
+                    <button onclick="switchLanguage('zh-TW')" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-tactical-700 hover:text-white flex items-center justify-between">
+                        <span>繁體中文</span>
+                        <i id="check-zh-TW" class="fa-solid fa-check text-tactical-red text-[11px]"></i>
+                    </button>
+                    <button onclick="switchLanguage('zh-CN')" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-tactical-700 hover:text-white flex items-center justify-between">
+                        <span>简体中文</span>
+                        <i id="check-zh-CN" class="fa-solid fa-check text-tactical-red text-[11px] hidden"></i>
+                    </button>
+                    <button onclick="switchLanguage('en')" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-tactical-700 hover:text-white flex items-center justify-between">
+                        <span>English</span>
+                        <i id="check-en" class="fa-solid fa-check text-tactical-red text-[11px] hidden"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
     </header>
 
     <!-- Main Container -->
@@ -96,7 +122,7 @@
                 <div class="flex justify-between items-center mb-4">
                     <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold flex items-center">
                         <span id="mic-status-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500 mr-2 inline-block"></span>
-                        麥克風槍聲偵測狀態
+                        <span data-i18n="mic_status">麥克風槍聲偵測狀態</span>
                     </span>
                     <span id="timer-state-badge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-700 text-slate-300">就緒</span>
                 </div>
@@ -105,22 +131,22 @@
                     <div id="main-time-display" class="font-digit text-6xl sm:text-8xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(239,68,68,0.3)]">
                         0.00
                     </div>
-                    <div class="text-slate-400 text-xs sm:text-sm mt-2 font-mono">秒 (Seconds)</div>
+                    <div class="text-slate-400 text-xs sm:text-sm mt-2 font-mono" data-i18n="unit_sec">秒 (Seconds)</div>
                 </div>
 
                 <!-- Oscilloscope Waveform Canvas -->
                 <div class="mt-4 bg-tactical-900 rounded-xl border border-tactical-700 p-2 overflow-hidden relative">
-                    <div class="absolute top-1 left-2 text-[10px] text-slate-500 font-mono">即時音波波形監控 / 靈敏度檢視</div>
+                    <div class="absolute top-1 left-2 text-[10px] text-slate-500 font-mono" data-i18n="waveform_title">即時音波波形監控 / 靈敏度檢視</div>
                     <canvas id="oscilloscope" class="w-full h-16 rounded"></canvas>
                 </div>
 
                 <!-- Controls Start / Stop -->
                 <div class="mt-6 flex flex-col sm:flex-row gap-3">
                     <button id="btn-start-ready" onclick="startCountdown()" class="flex-1 bg-tactical-red hover:bg-tactical-redHover text-white py-4 px-6 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center transition transform active:scale-95">
-                        <i class="fa-solid fa-play mr-2"></i> 開始計時 (Ready)
+                        <i class="fa-solid fa-play mr-2"></i> <span data-i18n="btn_start">開始計時 (Ready)</span>
                     </button>
                     <button id="btn-stop" onclick="stopTimer()" class="bg-tactical-700 hover:bg-tactical-600 text-slate-200 py-4 px-6 rounded-xl font-bold text-lg border border-tactical-600 flex items-center justify-center transition active:scale-95 sm:w-1/3">
-                        <i class="fa-solid fa-stop mr-2"></i> 停止 / 結算
+                        <i class="fa-solid fa-stop mr-2"></i> <span data-i18n="btn_stop">停止 / 結算</span>
                     </button>
                 </div>
             </div>
@@ -130,19 +156,19 @@
                 <!-- Audio Sensitivity Settings -->
                 <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg space-y-4">
                     <h3 class="text-sm font-bold text-slate-200 flex items-center">
-                        <i class="fa-solid fa-sliders text-tactical-red mr-2"></i> 槍聲偵測靈敏度調整
+                        <i class="fa-solid fa-sliders text-tactical-red mr-2"></i> <span data-i18n="head_sens">槍聲偵測靈敏度調整</span>
                     </h3>
                     <div>
                         <div class="flex justify-between text-xs text-slate-400 mb-1">
-                            <span>閾值 (Threshold): <strong id="threshold-val" class="text-white">35</strong></span>
-                            <span class="text-[10px]">數值越低越敏感</span>
+                            <span><span data-i18n="label_threshold">閾值 (Threshold):</span> <strong id="threshold-val" class="text-white">35</strong></span>
+                            <span class="text-[10px]" data-i18n="hint_threshold">數值越低越敏感</span>
                         </div>
                         <input type="range" id="threshold-slider" min="5" max="90" value="35" class="w-full accent-tactical-red bg-tactical-700 rounded-lg h-2 cursor-pointer" oninput="updateThreshold(this.value)">
                     </div>
                     <div class="flex items-center justify-between pt-2 border-t border-tactical-700">
-                        <span class="text-xs text-slate-300">啟用麥克風進行監聽</span>
+                        <span class="text-xs text-slate-300" data-i18n="mic_listen">啟用麥克風進行監聽</span>
                         <button onclick="initAudioContext()" class="bg-tactical-600 hover:bg-tactical-500 text-xs px-3 py-1.5 rounded-lg font-semibold text-white transition">
-                            <i class="fa-solid fa-microphone mr-1"></i>啟動麥克風
+                            <i class="fa-solid fa-microphone mr-1"></i><span data-i18n="btn_mic">啟動麥克風</span>
                         </button>
                     </div>
                 </div>
@@ -150,26 +176,26 @@
                 <!-- Start Delay & Par Time -->
                 <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg space-y-4">
                     <h3 class="text-sm font-bold text-slate-200 flex items-center">
-                        <i class="fa-solid fa-stopwatch text-tactical-red mr-2"></i> 起跑與蜂鳴器設定
+                        <i class="fa-solid fa-stopwatch text-tactical-red mr-2"></i> <span data-i18n="head_buzzer">起跑與蜂鳴器設定</span>
                     </h3>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs text-slate-400 mb-1">起跑延遲類型</label>
+                            <label class="block text-xs text-slate-400 mb-1" data-i18n="label_delay_type">起跑延遲類型</label>
                             <select id="start-delay-type" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-tactical-red">
-                                <option value="random">隨機 (1.0s - 4.0s)</option>
-                                <option value="instant">立即 (Instant)</option>
-                                <option value="fixed">固定 3.0 秒</option>
+                                <option value="random" data-i18n="opt_delay_random">隨機 (1.0s - 4.0s)</option>
+                                <option value="instant" data-i18n="opt_delay_instant">立即 (Instant)</option>
+                                <option value="fixed" data-i18n="opt_delay_fixed">固定 3.0 秒</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs text-slate-400 mb-1">Par Time (秒)</label>
+                            <label class="block text-xs text-slate-400 mb-1" data-i18n="label_par_time">Par Time (秒)</label>
                             <input type="number" id="par-time-input" value="0" step="0.5" min="0" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-tactical-red">
                         </div>
                     </div>
                     <div class="flex items-center justify-between pt-2 border-t border-tactical-700 text-xs text-slate-400">
-                        <span>IPSC 手持計時器蜂鳴測試 (2.8kHz)</span>
+                        <span data-i18n="buzzer_test_label">IPSC 手持計時器蜂鳴測試 (2.8kHz)</span>
                         <button onclick="playBuzzerSound()" class="bg-tactical-600 hover:bg-tactical-500 text-xs px-3 py-1.5 rounded-lg font-semibold text-white transition">
-                            <i class="fa-solid fa-volume-high mr-1"></i> 測試高分貝蜂鳴
+                            <i class="fa-solid fa-volume-high mr-1"></i><span data-i18n="btn_test_buzzer">測試高分貝蜂鳴</span>
                         </button>
                     </div>
                 </div>
@@ -179,26 +205,26 @@
             <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg">
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="text-sm font-bold text-slate-200 flex items-center">
-                        <i class="fa-solid fa-list-ol text-tactical-red mr-2"></i> 擊發記錄與 Split Time
+                        <i class="fa-solid fa-list-ol text-tactical-red mr-2"></i> <span data-i18n="head_splits">擊發記錄與 Split Time</span>
                     </h3>
                     <span id="shot-count-badge" class="text-xs bg-tactical-700 px-2 py-0.5 rounded text-slate-300 font-mono">0 槍</span>
                 </div>
                 <div id="splits-container" class="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    <div class="text-center text-xs text-slate-500 py-6 font-mono">尚未偵測到擊發，點擊「開始計時」或開槍測試</div>
+                    <div class="text-center text-xs text-slate-500 py-6 font-mono" id="splits-empty-msg" data-i18n="splits_empty">尚未偵測到擊發，點擊「開始計時」或開槍測試</div>
                 </div>
             </div>
         </section>
 
         <!-- TAB 2: TARGET SCORING -->
         <section id="tab-scoring" class="space-y-6 hidden">
-            <!-- Shooter Signature / ID Input (Feature Request 1) -->
+            <!-- Shooter Signature / ID Input -->
             <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-4 shadow-lg flex items-center gap-3">
                 <div class="text-tactical-red text-lg pl-2">
                     <i class="fa-solid fa-id-card"></i>
                 </div>
                 <div class="flex-1">
-                    <label class="block text-[11px] text-slate-400 font-semibold mb-1">射手姓名 / 代號 (Shooter Name / ID)</label>
-                    <input type="text" id="shooter-name-input" placeholder="例如：Shooter #01 - Alex" class="w-full bg-tactical-900 border border-tactical-600 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-tactical-red font-medium">
+                    <label class="block text-[11px] text-slate-400 font-semibold mb-1" data-i18n="label_shooter">射手姓名 / 代號 (Shooter Name / ID)</label>
+                    <input type="text" id="shooter-name-input" data-i18n-placeholder="placeholder_shooter" placeholder="例如：Shooter #01 - Alex" class="w-full bg-tactical-900 border border-tactical-600 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-tactical-red font-medium">
                 </div>
             </div>
 
@@ -206,16 +232,16 @@
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                         <h2 class="text-base font-bold text-white flex items-center">
-                            <i class="fa-solid fa-camera text-tactical-red mr-2"></i> 靶紙畫面擷取與相機標記
+                            <i class="fa-solid fa-camera text-tactical-red mr-2"></i> <span data-i18n="head_target">靶紙畫面擷取與相機標記</span>
                         </h2>
-                        <p class="text-xs text-slate-400">開啟相機拍攝靶紙後定格，選擇下方彈孔區域並在圖片上點擊進行精準標記。</p>
+                        <p class="text-xs text-slate-400" data-i18n="desc_target">開啟相機拍攝靶紙後定格，選擇下方彈孔區域並在圖片上點擊進行精準標記。</p>
                     </div>
                     <div class="flex gap-2 w-full sm:w-auto">
                         <button onclick="startCamera()" class="flex-1 sm:flex-none bg-tactical-red hover:bg-tactical-redHover text-white text-xs px-4 py-2 rounded-xl font-bold transition">
-                            <i class="fa-solid fa-video mr-1"></i> 開啟相機
+                            <i class="fa-solid fa-video mr-1"></i> <span data-i18n="btn_camera">開啟相機</span>
                         </button>
                         <label class="flex-1 sm:flex-none bg-tactical-700 hover:bg-tactical-600 border border-tactical-600 text-slate-200 text-xs px-4 py-2 rounded-xl font-bold cursor-pointer text-center transition">
-                            <i class="fa-solid fa-upload mr-1"></i> 上傳照片
+                            <i class="fa-solid fa-upload mr-1"></i> <span data-i18n="btn_upload">上傳照片</span>
                             <input type="file" id="upload-target-img" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
                         </label>
                     </div>
@@ -224,17 +250,17 @@
                 <!-- Zone Selection Bar -->
                 <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2">
                     <span class="text-xs text-slate-400 font-semibold flex items-center">
-                        <i class="fa-solid fa-hand-pointer text-tactical-red mr-1.5"></i>選擇要標記的區域:
+                        <i class="fa-solid fa-hand-pointer text-tactical-red mr-1.5"></i><span data-i18n="label_select_zone">選擇要標記的區域:</span>
                     </span>
                     <div class="flex flex-wrap gap-1.5" id="zone-selector">
                         <button onclick="selectZone('A')" id="zone-btn-A" class="zone-pill active bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/50 px-3 py-1 rounded-lg text-xs font-bold transition">
-                            A 區
+                            <span data-i18n="zone_a">A 區</span>
                         </button>
                         <button onclick="selectZone('C')" id="zone-btn-C" class="zone-pill bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 border border-amber-500/50 px-3 py-1 rounded-lg text-xs font-bold transition">
-                            C 區
+                            <span data-i18n="zone_c">C 區</span>
                         </button>
                         <button onclick="selectZone('D')" id="zone-btn-D" class="zone-pill bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 border border-orange-500/50 px-3 py-1 rounded-lg text-xs font-bold transition">
-                            D 區
+                            <span data-i18n="zone_d">D 區</span>
                         </button>
                         <button onclick="selectZone('M')" id="zone-btn-M" class="zone-pill bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 border border-rose-500/50 px-3 py-1 rounded-lg text-xs font-bold transition">
                             Miss
@@ -255,22 +281,22 @@
                         <div class="w-16 h-16 bg-tactical-700 rounded-full flex items-center justify-center mx-auto text-slate-400 text-2xl">
                             <i class="fa-solid fa-bullseye"></i>
                         </div>
-                        <p class="text-xs text-slate-400">點擊「開啟相機」拍攝或「上傳照片」，照片定格後即可在上面點擊標記彈孔</p>
+                        <p class="text-xs text-slate-400" id="cam-placeholder-text" data-i18n="placeholder_camera">點擊「開啟相機」拍攝或「上傳照片」，照片定格後即可在上面點擊標記彈孔</p>
                     </div>
 
                     <!-- Capture Photo Button overlay if camera is active -->
                     <div id="camera-controls" class="absolute bottom-4 left-0 right-0 flex justify-center hidden">
                         <button onclick="captureCameraSnapshot()" class="bg-tactical-red text-white text-xs font-bold px-6 py-2.5 rounded-full shadow-lg border border-red-400 flex items-center hover:bg-tactical-redHover transition">
-                            <i class="fa-solid fa-camera-retro mr-2"></i> 拍攝靶紙照片 (定格標記)
+                            <i class="fa-solid fa-camera-retro mr-2"></i> <span data-i18n="btn_capture">拍攝靶紙照片 (定格標記)</span>
                         </button>
                     </div>
                 </div>
 
                 <div class="flex justify-between items-center text-[11px] text-slate-400 font-mono">
-                    <span>提示：相機凍結畫面後可連續點擊進行多次彈孔標記</span>
+                    <span data-i18n="hint_canvas">提示：相機凍結畫面後可連續點擊進行多次彈孔標記</span>
                     <div class="space-x-3">
-                        <button onclick="undoLastMark()" class="text-slate-300 hover:text-white"><i class="fa-solid fa-rotate-left mr-1"></i>復原最後標記</button>
-                        <button onclick="clearTargetMarks()" class="text-tactical-red hover:underline"><i class="fa-solid fa-trash mr-1"></i>清空所有標記</button>
+                        <button onclick="undoLastMark()" class="text-slate-300 hover:text-white"><i class="fa-solid fa-rotate-left mr-1"></i><span data-i18n="btn_undo">復原最後標記</span></button>
+                        <button onclick="clearTargetMarks()" class="text-tactical-red hover:underline"><i class="fa-solid fa-trash mr-1"></i><span data-i18n="btn_clear_marks">清空所有標記</span></button>
                     </div>
                 </div>
             </div>
@@ -281,41 +307,41 @@
                 <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg space-y-4">
                     <div class="flex justify-between items-center">
                         <h3 class="text-sm font-bold text-slate-200 flex items-center">
-                            <i class="fa-solid fa-calculator text-tactical-red mr-2"></i> 照片實際標記環數統計
+                            <i class="fa-solid fa-calculator text-tactical-red mr-2"></i> <span data-i18n="head_target_stats">照片實際標記環數統計</span>
                         </h3>
                         <span id="power-factor-badge" class="text-[10px] bg-tactical-700 border border-tactical-600 px-2 py-0.5 rounded text-amber-400 font-bold">Minor 輕裝組</span>
                     </div>
 
                     <div class="grid grid-cols-3 gap-2 text-center">
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">A 區 (<span id="score-val-a">5</span>分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold"><span data-i18n="pts_zone_a">A 區</span> (<span id="score-val-a">5</span><span data-i18n="pts_abbr">分</span>)</div>
                             <div id="count-a" class="font-digit text-xl font-bold text-emerald-400">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">C 區 (<span id="score-val-c">3</span>分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold"><span data-i18n="pts_zone_c">C 區</span> (<span id="score-val-c">3</span><span data-i18n="pts_abbr">分</span>)</div>
                             <div id="count-c" class="font-digit text-xl font-bold text-amber-400">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">D 區 (<span id="score-val-d">1</span>分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold"><span data-i18n="pts_zone_d">D 區</span> (<span id="score-val-d">1</span><span data-i18n="pts_abbr">分</span>)</div>
                             <div id="count-d" class="font-digit text-xl font-bold text-orange-400">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">Miss (<span id="score-val-m">-10</span>分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold">Miss (<span id="score-val-m">-10</span><span data-i18n="pts_abbr">分</span>)</div>
                             <div id="count-miss" class="font-digit text-xl font-bold text-rose-500">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">No-Shoot (<span id="score-val-ns">-10</span>分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold">No-Shoot (<span id="score-val-ns">-10</span><span data-i18n="pts_abbr">分</span>)</div>
                             <div id="count-ns" class="font-digit text-xl font-bold text-purple-400">0</div>
                         </div>
                         <div class="bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl">
-                            <div class="text-[10px] text-slate-400 font-bold">Procedural (<span id="score-val-p">-10</span>分)</div>
+                            <div class="text-[10px] text-slate-400 font-bold">Procedural (<span id="score-val-p">-10</span><span data-i18n="pts_abbr">分</span>)</div>
                             <div id="count-proc" class="font-digit text-xl font-bold text-indigo-400">0</div>
                         </div>
                     </div>
 
                     <!-- Custom Penalty & Procedural Adjustment -->
                     <div class="flex items-center justify-between bg-tactical-900 border border-tactical-700 p-2.5 rounded-xl text-xs">
-                        <span class="text-slate-300 font-semibold">程序犯規罰分 (Procedural):</span>
+                        <span class="text-slate-300 font-semibold" data-i18n="label_proc_penalty">程序犯規罰分 (Procedural):</span>
                         <div class="flex items-center space-x-2">
                             <button onclick="changeProcedural(-1)" class="w-7 h-7 bg-tactical-700 hover:bg-tactical-600 rounded-lg text-slate-200 font-bold">-</button>
                             <span id="proc-val-display" class="font-digit font-bold text-white px-2">0</span>
@@ -329,38 +355,38 @@
                     <div>
                         <div class="flex justify-between items-center mb-3">
                             <h3 class="text-sm font-bold text-slate-200 flex items-center">
-                                <i class="fa-solid fa-square-root-variable text-tactical-red mr-2"></i> 計分與 Hit Factor 計算公式
+                                <i class="fa-solid fa-square-root-variable text-tactical-red mr-2"></i> <span data-i18n="head_formula">計分與 Hit Factor 計算公式</span>
                             </h3>
                             <button onclick="openFormulaModal()" class="text-xs bg-tactical-700 hover:bg-tactical-600 text-tactical-red border border-tactical-600 px-2.5 py-1 rounded-lg font-bold transition">
-                                <i class="fa-solid fa-gear mr-1"></i>修改公式設定
+                                <i class="fa-solid fa-gear mr-1"></i><span data-i18n="btn_edit_formula">修改公式設定</span>
                             </button>
                         </div>
 
                         <!-- Display Exact Formula -->
                         <div class="bg-tactical-900 border border-tactical-700 p-3 rounded-xl text-[11px] font-mono text-slate-300 space-y-1.5">
-                            <div class="text-slate-400">計分公式說明:</div>
+                            <div class="text-slate-400" data-i18n="formula_exp">計分公式說明:</div>
                             <div class="text-emerald-400 font-bold">Points = (A×Pa) + (C×Pc) + (D×Pd) - (M×Pm) - (NS×Pns) - (P×Pp)</div>
-                            <div class="text-amber-400 font-bold">Hit Factor (HF) = Total Points / Time (秒)</div>
+                            <div class="text-amber-400 font-bold">Hit Factor (HF) = Total Points / Time (<span data-i18n="sec_abbr">秒</span>)</div>
                         </div>
 
                         <div class="space-y-2 bg-tactical-900 p-3 rounded-xl border border-tactical-700 mt-3">
                             <div class="flex justify-between text-xs text-slate-300">
-                                <span>測量時間 (Time):</span>
+                                <span data-i18n="time_measured">測量時間 (Time):</span>
                                 <span id="hf-time-display" class="font-digit font-bold text-white">0.00 秒</span>
                             </div>
                             <div class="flex justify-between text-xs text-slate-300">
-                                <span>靶紙累積總得分 (Points):</span>
+                                <span data-i18n="points_total">靶紙累積總得分 (Points):</span>
                                 <span id="hf-points-display" class="font-digit font-bold text-white">0 分</span>
                             </div>
                             <div class="border-t border-tactical-700 pt-2 flex justify-between items-center">
-                                <span class="text-xs font-bold text-tactical-red">Hit Factor (HF):</span>
+                                <span class="text-xs font-bold text-tactical-red" data-i18n="hit_factor">Hit Factor (HF):</span>
                                 <span id="hf-result-display" class="font-digit text-2xl font-black text-white">0.0000</span>
                             </div>
                         </div>
                     </div>
 
                     <button onclick="saveCurrentSession()" class="w-full bg-tactical-red hover:bg-tactical-redHover text-white py-3 rounded-xl font-bold text-sm shadow-lg transition active:scale-95 flex items-center justify-center">
-                        <i class="fa-solid fa-floppy-disk mr-2"></i> 儲存本局射擊與靶紙成績
+                        <i class="fa-solid fa-floppy-disk mr-2"></i> <span data-i18n="btn_save_session">儲存本局射擊與靶紙成績</span>
                     </button>
                 </div>
             </div>
@@ -371,20 +397,20 @@
             <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-5 shadow-lg">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                     <h2 class="text-base font-bold text-white flex items-center">
-                        <i class="fa-solid fa-clock-rotate-left text-tactical-red mr-2"></i> 歷史練習紀錄 (Session History)
+                        <i class="fa-solid fa-clock-rotate-left text-tactical-red mr-2"></i> <span data-i18n="head_history">歷史練習紀錄 (Session History)</span>
                     </h2>
                     <div class="flex gap-2 w-full sm:w-auto">
-                        <!-- CSV Export Button (Feature Request 2) -->
+                        <!-- CSV Export Button -->
                         <button onclick="exportToCSV()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-xl font-bold shadow-md transition flex items-center justify-center">
-                            <i class="fa-solid fa-file-csv mr-1.5 text-sm"></i> 匯出 CSV 檔案
+                            <i class="fa-solid fa-file-csv mr-1.5 text-sm"></i> <span data-i18n="btn_export_csv">匯出 CSV 檔案</span>
                         </button>
                         <button onclick="clearHistory()" class="text-xs text-slate-400 hover:text-tactical-red border border-tactical-700 px-3 py-2 rounded-xl transition">
-                            <i class="fa-solid fa-trash mr-1"></i> 清空紀錄
+                            <i class="fa-solid fa-trash mr-1"></i> <span data-i18n="btn_clear_history">清空紀錄</span>
                         </button>
                     </div>
                 </div>
                 <div id="history-container" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                    <div class="text-center text-xs text-slate-500 py-12 font-mono">尚無儲存的紀錄，快去完成一場射擊練習吧！</div>
+                    <div class="text-center text-xs text-slate-500 py-12 font-mono" id="history-empty-msg" data-i18n="history_empty">尚無儲存的紀錄，快去完成一場射擊練習吧！</div>
                 </div>
             </div>
         </section>
@@ -396,20 +422,20 @@
         <div class="bg-tactical-800 border border-tactical-600 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
             <div class="flex justify-between items-center border-b border-tactical-700 pb-3">
                 <h3 class="font-bold text-white text-base flex items-center">
-                    <i class="fa-solid fa-sliders text-tactical-red mr-2"></i> 客製化賽事計分分值與公式設定
+                    <i class="fa-solid fa-sliders text-tactical-red mr-2"></i> <span data-i18n="modal_formula_title">客製化賽事計分分值與公式設定</span>
                 </h3>
                 <button onclick="closeFormulaModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
 
             <!-- Major / Minor Quick Presets -->
             <div class="space-y-2">
-                <label class="text-xs text-slate-400 font-semibold">快速套用 IPSC 預設組別:</label>
+                <label class="text-xs text-slate-400 font-semibold" data-i18n="label_quick_preset">快速套用 IPSC 預設組別:</label>
                 <div class="grid grid-cols-2 gap-2">
                     <button onclick="applyPreset('minor')" class="bg-tactical-700 hover:bg-tactical-600 text-xs py-2 rounded-lg text-slate-200 border border-tactical-600 font-bold transition">
-                        Minor (輕裝: A:5, C:3, D:1)
+                        <span data-i18n="preset_minor_btn">Minor (輕裝: A:5, C:3, D:1)</span>
                     </button>
                     <button onclick="applyPreset('major')" class="bg-tactical-700 hover:bg-tactical-600 text-xs py-2 rounded-lg text-slate-200 border border-tactical-600 font-bold transition">
-                        Major (重裝: A:5, C:4, D:2)
+                        <span data-i18n="preset_major_btn">Major (重裝: A:5, C:4, D:2)</span>
                     </button>
                 </div>
             </div>
@@ -417,34 +443,34 @@
             <!-- Custom Point Inputs -->
             <div class="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                    <label class="block text-slate-400 mb-1">A 區分值</label>
+                    <label class="block text-slate-400 mb-1" data-i18n="label_pa">A 區分值</label>
                     <input type="number" id="input-pa" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
                 </div>
                 <div>
-                    <label class="block text-slate-400 mb-1">C 區分值</label>
+                    <label class="block text-slate-400 mb-1" data-i18n="label_pc">C 區分值</label>
                     <input type="number" id="input-pc" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
                 </div>
                 <div>
-                    <label class="block text-slate-400 mb-1">D 區分值</label>
+                    <label class="block text-slate-400 mb-1" data-i18n="label_pd">D 區分值</label>
                     <input type="number" id="input-pd" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
                 </div>
                 <div>
-                    <label class="block text-slate-400 mb-1">Miss 倒扣分</label>
+                    <label class="block text-slate-400 mb-1" data-i18n="label_pm">Miss 倒扣分</label>
                     <input type="number" id="input-pm" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
                 </div>
                 <div>
-                    <label class="block text-slate-400 mb-1">No-Shoot 倒扣分</label>
+                    <label class="block text-slate-400 mb-1" data-i18n="label_pns">No-Shoot 倒扣分</label>
                     <input type="number" id="input-pns" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
                 </div>
                 <div>
-                    <label class="block text-slate-400 mb-1">Procedural 倒扣分</label>
+                    <label class="block text-slate-400 mb-1" data-i18n="label_ppp">Procedural 倒扣分</label>
                     <input type="number" id="input-pp" class="w-full bg-tactical-900 border border-tactical-600 rounded-lg p-2 text-white font-mono">
                 </div>
             </div>
 
             <div class="pt-2 flex gap-2">
                 <button onclick="saveFormulaSettings()" class="flex-1 bg-tactical-red hover:bg-tactical-redHover text-white py-2.5 rounded-xl font-bold text-xs transition">
-                    <i class="fa-solid fa-floppy-disk mr-1"></i>儲存並記憶設定
+                    <i class="fa-solid fa-floppy-disk mr-1"></i><span data-i18n="btn_save_formula">儲存並記憶設定</span>
                 </button>
             </div>
         </div>
@@ -460,19 +486,486 @@
                 <h4 id="modal-title" class="font-bold text-white text-base">提示訊息</h4>
                 <p id="modal-message" class="text-xs text-slate-300 mt-1">訊息內容...</p>
             </div>
-            <button onclick="closeModal()" class="w-full bg-tactical-red hover:bg-tactical-redHover text-white py-2.5 rounded-xl font-bold text-xs transition">
+            <button onclick="closeModal()" class="w-full bg-tactical-red hover:bg-tactical-redHover text-white py-2.5 rounded-xl font-bold text-xs transition" data-i18n="btn_confirm">
                 確定
             </button>
         </div>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-tactical-800 border-t border-tactical-600 text-center py-3 text-[11px] text-slate-500 font-mono">
+    <footer class="bg-tactical-800 border-t border-tactical-600 text-center py-3 text-[11px] text-slate-500 font-mono" id="app-footer" data-i18n="footer_text">
         IPSC Shot Timer & Target Scoring Web App &copy; 2026 | Tactical Professional
     </footer>
 
     <!-- JavaScript Logic -->
     <script>
+        // --- Internationalization (i18n) Dictionary ---
+        const i18nData = {
+            'zh-TW': {
+                page_title: "IPSC 專業戰術計時器與靶紙計分系統 Pro",
+                app_title: "IPSC TIMER Pro",
+                app_subtitle: "戰術射擊計時與靶紙計分系統",
+                nav_timer: "計時器",
+                nav_scoring: "靶紙計分",
+                nav_history: "紀錄",
+                mic_status: "麥克風槍聲偵測狀態",
+                state_ready: "就緒",
+                state_standby: "預備起跑...",
+                state_timing: "計時中...",
+                state_stopped: "已停止 / 結算",
+                unit_sec: "秒 (Seconds)",
+                sec_abbr: "秒",
+                pts_abbr: "分",
+                shots_unit: "槍",
+                shots_unit_count: "發",
+                waveform_title: "即時音波波形監控 / 靈敏度檢視",
+                btn_start: "開始計時 (Ready)",
+                btn_stop: "停止 / 結算",
+                head_sens: "槍聲偵測靈敏度調整",
+                label_threshold: "閾值 (Threshold):",
+                hint_threshold: "數值越低越敏感",
+                mic_listen: "啟用麥克風進行監聽",
+                btn_mic: "啟動麥克風",
+                head_buzzer: "起跑與蜂鳴器設定",
+                label_delay_type: "起跑延遲類型",
+                opt_delay_random: "隨機 (1.0s - 4.0s)",
+                opt_delay_instant: "立即 (Instant)",
+                opt_delay_fixed: "固定 3.0 秒",
+                label_par_time: "Par Time (秒)",
+                buzzer_test_label: "IPSC 手持計時器蜂鳴測試 (2.8kHz)",
+                btn_test_buzzer: "測試高分貝蜂鳴",
+                head_splits: "擊發記錄與 Split Time",
+                splits_empty: "尚未偵測到擊發，點擊「開始計時」或開槍測試",
+                split_time: "時間:",
+                split_delta: "Split:",
+                label_shooter: "射手姓名 / 代號 (Shooter Name / ID)",
+                placeholder_shooter: "例如：Shooter #01 - Alex",
+                default_shooter: "未署名射手",
+                head_target: "靶紙畫面擷取與相機標記",
+                desc_target: "開啟相機拍攝靶紙後定格，選擇下方彈孔區域並在圖片上點擊進行精準標記。",
+                btn_camera: "開啟相機",
+                btn_upload: "上傳照片",
+                label_select_zone: "選擇要標記的區域:",
+                zone_a: "A 區",
+                zone_c: "C 區",
+                zone_d: "D 區",
+                zone_m: "Miss",
+                zone_ns: "No-Shoot",
+                placeholder_camera: "點擊「開啟相機」拍攝或「上傳照片」，照片定格後即可在上面點擊標記彈孔",
+                btn_capture: "拍攝靶紙照片 (定格標記)",
+                hint_canvas: "提示：相機凍結畫面後可連續點擊進行多次彈孔標記",
+                btn_undo: "復原最後標記",
+                btn_clear_marks: "清空所有標記",
+                head_target_stats: "照片實際標記環數統計",
+                preset_minor_badge: "Minor 輕裝組",
+                preset_major_badge: "Major 重裝組",
+                pts_zone_a: "A 區",
+                pts_zone_c: "C 區",
+                pts_zone_d: "D 區",
+                pts_penalty_m: "Miss",
+                pts_penalty_ns: "No-Shoot",
+                pts_penalty_proc: "Procedural",
+                label_proc_penalty: "程序犯規罰分 (Procedural):",
+                head_formula: "計分與 Hit Factor 計算公式",
+                btn_edit_formula: "修改公式設定",
+                formula_exp: "計分公式說明:",
+                time_measured: "測量時間 (Time):",
+                points_total: "靶紙累積總得分 (Points):",
+                hit_factor: "Hit Factor (HF):",
+                btn_save_session: "儲存本局射擊與靶紙成績",
+                head_history: "歷史練習紀錄 (Session History)",
+                btn_export_csv: "匯出 CSV 檔案",
+                btn_clear_history: "清空紀錄",
+                history_empty: "尚無儲存的紀錄，快去完成一場射擊練習吧！",
+                modal_formula_title: "客製化賽事計分分值與公式設定",
+                label_quick_preset: "快速套用 IPSC 預設組別:",
+                preset_minor_btn: "Minor (輕裝: A:5, C:3, D:1)",
+                preset_major_btn: "Major (重裝: A:5, C:4, D:2)",
+                label_pa: "A 區分值",
+                label_pc: "C 區分值",
+                label_pd: "D 區分值",
+                label_pm: "Miss 倒扣分",
+                label_pns: "No-Shoot 倒扣分",
+                label_ppp: "Procedural 倒扣分",
+                btn_save_formula: "儲存並記憶設定",
+                btn_confirm: "確定",
+                footer_text: "IPSC 專業戰術計時器與靶紙計分系統 &copy; 2026 | 戰術專業版",
+                msg_mic_ready_title: "麥克風已就緒",
+                msg_mic_ready_desc: "槍聲偵測系統已連線。",
+                msg_mic_err_title: "麥克風啟用失敗",
+                msg_mic_err_desc: "無法讀取音訊，請確認權限。",
+                msg_cam_err_title: "相機啟動失敗",
+                msg_cam_err_desc: "請選取「上傳照片」功能以進行靶紙標記。",
+                msg_saved_title: "儲存成功",
+                msg_saved_desc: "射手 [{name}] 的成績與彈孔紀錄已成功寫入歷史數據庫！",
+                msg_formula_saved_title: "計分設定已儲存",
+                msg_formula_saved_desc: "新的計分公式與分值設定已成功寫入記憶！",
+                msg_export_err_title: "無法匯出",
+                msg_export_err_desc: "歷史紀錄庫中目前沒有任何成績資料。",
+                msg_export_ok_title: "CSV 匯出成功",
+                msg_export_ok_desc: "已成功下載 {count} 筆練習成績匯出檔 ({filename})。",
+                card_time: "用時:",
+                card_points: "總分:",
+                card_shots: "總發數:",
+                csv_shooter: "射手姓名 (Shooter Name)",
+                csv_time: "日期時間 (Timestamp)",
+                csv_pf: "賽制分級 (Power Factor)",
+                csv_total_time: "總用時/秒 (Total Time/s)",
+                csv_shots: "總擊發數 (Shot Count)",
+                csv_a: "A區數量 (A Zone)",
+                csv_c: "C區數量 (C Zone)",
+                csv_d: "D區數量 (D Zone)",
+                csv_m: "脫靶數 (Misses)",
+                csv_ns: "擊中罰靶 (No-Shoot)",
+                csv_p: "程序犯規 (Procedural)",
+                csv_points: "總得分 (Total Points)",
+                csv_hf: "Hit Factor (HF)"
+            },
+            'zh-CN': {
+                page_title: "IPSC 专业战术计时器与靶纸计分系统 Pro",
+                app_title: "IPSC TIMER Pro",
+                app_subtitle: "战术射击计时与靶纸计分系统",
+                nav_timer: "计时器",
+                nav_scoring: "靶纸计分",
+                nav_history: "纪录",
+                mic_status: "麦克风枪声侦测状态",
+                state_ready: "就绪",
+                state_standby: "预备起跑...",
+                state_timing: "计时中...",
+                state_stopped: "已停止 / 结算",
+                unit_sec: "秒 (Seconds)",
+                sec_abbr: "秒",
+                pts_abbr: "分",
+                shots_unit: "枪",
+                shots_unit_count: "发",
+                waveform_title: "实时音波波形监控 / 灵敏度检视",
+                btn_start: "开始计时 (Ready)",
+                btn_stop: "停止 / 结算",
+                head_sens: "枪声侦测灵敏度调整",
+                label_threshold: "阈值 (Threshold):",
+                hint_threshold: "数值越低越敏感",
+                mic_listen: "启用麦克风进行监听",
+                btn_mic: "启动麦克风",
+                head_buzzer: "起跑与蜂鸣器设定",
+                label_delay_type: "起跑延迟类型",
+                opt_delay_random: "随机 (1.0s - 4.0s)",
+                opt_delay_instant: "立即 (Instant)",
+                opt_delay_fixed: "固定 3.0 秒",
+                label_par_time: "Par Time (秒)",
+                buzzer_test_label: "IPSC 手持计时器蜂鸣测试 (2.8kHz)",
+                btn_test_buzzer: "测试高分贝蜂鸣",
+                head_splits: "击发记录与 Split Time",
+                splits_empty: "尚未侦测到击发，点击「开始计时」或开枪测试",
+                split_time: "时间:",
+                split_delta: "Split:",
+                label_shooter: "射手姓名 / 代号 (Shooter Name / ID)",
+                placeholder_shooter: "例如：Shooter #01 - Alex",
+                default_shooter: "未署名射手",
+                head_target: "靶纸画面截取与相机标记",
+                desc_target: "开启相机拍摄靶纸后定格，选择下方弹孔区域并在图片上点击进行精准标记。",
+                btn_camera: "开启相机",
+                btn_upload: "上传照片",
+                label_select_zone: "选择要标记的区域:",
+                zone_a: "A 区",
+                zone_c: "C 区",
+                zone_d: "D 区",
+                zone_m: "Miss",
+                zone_ns: "No-Shoot",
+                placeholder_camera: "点击「开启相机」拍摄或「上传照片」，照片定格后即可在上面点击标记弹孔",
+                btn_capture: "拍摄靶纸照片 (定格标记)",
+                hint_canvas: "提示：相机冻结画面后可连续点击进行多次弹孔标记",
+                btn_undo: "复原最后标记",
+                btn_clear_marks: "清空所有标记",
+                head_target_stats: "照片实际标记环数统计",
+                preset_minor_badge: "Minor 轻装组",
+                preset_major_badge: "Major 重装组",
+                pts_zone_a: "A 区",
+                pts_zone_c: "C 区",
+                pts_zone_d: "D 区",
+                pts_penalty_m: "Miss",
+                pts_penalty_ns: "No-Shoot",
+                pts_penalty_proc: "Procedural",
+                label_proc_penalty: "程序犯规罚分 (Procedural):",
+                head_formula: "计分与 Hit Factor 计算公式",
+                btn_edit_formula: "修改公式设定",
+                formula_exp: "计分公式说明:",
+                time_measured: "测量时间 (Time):",
+                points_total: "靶纸累积总得分 (Points):",
+                hit_factor: "Hit Factor (HF):",
+                btn_save_session: "储存本局射击与靶纸成绩",
+                head_history: "历史练习纪录 (Session History)",
+                btn_export_csv: "导出 CSV 文件",
+                btn_clear_history: "清空纪录",
+                history_empty: "尚无储存的纪录，快去完成一场射击练习吧！",
+                modal_formula_title: "客制化赛事计分分值与公式设定",
+                label_quick_preset: "快速套用 IPSC 预设组别:",
+                preset_minor_btn: "Minor (轻装: A:5, C:3, D:1)",
+                preset_major_btn: "Major (重装: A:5, C:4, D:2)",
+                label_pa: "A 区分值",
+                label_pc: "C 区分值",
+                label_pd: "D 区分值",
+                label_pm: "Miss 倒扣分",
+                label_pns: "No-Shoot 倒扣分",
+                label_ppp: "Procedural 倒扣分",
+                btn_save_formula: "储存并记忆设定",
+                btn_confirm: "确定",
+                footer_text: "IPSC 专业战术计时器与靶纸计分系统 &copy; 2026 | 战术专业版",
+                msg_mic_ready_title: "麦克风已就绪",
+                msg_mic_ready_desc: "枪声侦测系统已连线。",
+                msg_mic_err_title: "麦克风启用失败",
+                msg_mic_err_desc: "无法读取音频，请确认权限。",
+                msg_cam_err_title: "相机启动失败",
+                msg_cam_err_desc: "请选取「上传照片」功能以进行靶纸标记。",
+                msg_saved_title: "储存成功",
+                msg_saved_desc: "射手 [{name}] 的成绩与弹孔纪录已成功写入历史数据库！",
+                msg_formula_saved_title: "计分设定已储存",
+                msg_formula_saved_desc: "新的计分公式与分值设定已成功写入记忆！",
+                msg_export_err_title: "无法导出",
+                msg_export_err_desc: "历史纪录库中目前没有任何成绩资料。",
+                msg_export_ok_title: "CSV 导出成功",
+                msg_export_ok_desc: "已成功下载 {count} 笔练习成绩导出档 ({filename})。",
+                card_time: "用时:",
+                card_points: "总分:",
+                card_shots: "总发数:",
+                csv_shooter: "射手姓名 (Shooter Name)",
+                csv_time: "日期时间 (Timestamp)",
+                csv_pf: "赛制分级 (Power Factor)",
+                csv_total_time: "总用时/秒 (Total Time/s)",
+                csv_shots: "总击发数 (Shot Count)",
+                csv_a: "A区数量 (A Zone)",
+                csv_c: "C区数量 (C Zone)",
+                csv_d: "D区数量 (D Zone)",
+                csv_m: "脱靶数 (Misses)",
+                csv_ns: "击中罚靶 (No-Shoot)",
+                csv_p: "程序犯规 (Procedural)",
+                csv_points: "总得分 (Total Points)",
+                csv_hf: "Hit Factor (HF)"
+            },
+            'en': {
+                page_title: "IPSC Pro Shot Timer & Target Scoring System",
+                app_title: "IPSC TIMER Pro",
+                app_subtitle: "Tactical Shot & Target Scoring System",
+                nav_timer: "Timer",
+                nav_scoring: "Scoring",
+                nav_history: "History",
+                mic_status: "Mic Shot Detection Status",
+                state_ready: "Ready",
+                state_standby: "Standby...",
+                state_timing: "Timing...",
+                state_stopped: "Stopped / Settled",
+                unit_sec: "Seconds",
+                sec_abbr: "s",
+                pts_abbr: "pts",
+                shots_unit: "Shots",
+                shots_unit_count: "shots",
+                waveform_title: "Real-time Waveform Monitor / Sensitivity",
+                btn_start: "Start Timer (Ready)",
+                btn_stop: "Stop / Settle",
+                head_sens: "Shot Detection Sensitivity",
+                label_threshold: "Threshold:",
+                hint_threshold: "Lower value is more sensitive",
+                mic_listen: "Enable Microphone for Audio Detection",
+                btn_mic: "Start Mic",
+                head_buzzer: "Start Delay & Buzzer Settings",
+                label_delay_type: "Start Delay Type",
+                opt_delay_random: "Random (1.0s - 4.0s)",
+                opt_delay_instant: "Instant (0.5s)",
+                opt_delay_fixed: "Fixed 3.0s",
+                label_par_time: "Par Time (Seconds)",
+                buzzer_test_label: "IPSC Handheld Timer Buzzer Test (2.8kHz)",
+                btn_test_buzzer: "Test Loud Buzzer",
+                head_splits: "Shot Splits & Log",
+                splits_empty: "No shots detected. Press Start Timer or shoot to test.",
+                split_time: "Time:",
+                split_delta: "Split:",
+                label_shooter: "Shooter Name / ID",
+                placeholder_shooter: "e.g. Shooter #01 - Alex",
+                default_shooter: "Anonymous Shooter",
+                head_target: "Target Capture & Camera Markings",
+                desc_target: "Capture target with camera or upload image, then tap to mark bullet hits.",
+                btn_camera: "Open Camera",
+                btn_upload: "Upload Photo",
+                label_select_zone: "Select Zone to Mark:",
+                zone_a: "A Zone",
+                zone_c: "C Zone",
+                zone_d: "D Zone",
+                zone_m: "Miss",
+                zone_ns: "No-Shoot",
+                placeholder_camera: "Click 'Open Camera' or 'Upload Photo', then tap the frozen image to mark hits",
+                btn_capture: "Capture Target Photo (Freeze & Mark)",
+                hint_canvas: "Tip: Tap repeatedly to mark multiple bullet impacts",
+                btn_undo: "Undo Last Mark",
+                btn_clear_marks: "Clear All Marks",
+                head_target_stats: "Marked Hit Statistics",
+                preset_minor_badge: "Minor Power Factor",
+                preset_major_badge: "Major Power Factor",
+                pts_zone_a: "A Zone",
+                pts_zone_c: "C Zone",
+                pts_zone_d: "D Zone",
+                pts_penalty_m: "Miss",
+                pts_penalty_ns: "No-Shoot",
+                pts_penalty_proc: "Procedural",
+                label_proc_penalty: "Procedural Penalties:",
+                head_formula: "Scoring & Hit Factor Formula",
+                btn_edit_formula: "Formula Settings",
+                formula_exp: "Formula Explanation:",
+                time_measured: "Measured Time (Time):",
+                points_total: "Total Target Points:",
+                hit_factor: "Hit Factor (HF):",
+                btn_save_session: "Save Session & Target Score",
+                head_history: "Session History & Logs",
+                btn_export_csv: "Export CSV",
+                btn_clear_history: "Clear History",
+                history_empty: "No saved records yet. Complete a shooting stage to begin!",
+                modal_formula_title: "Custom Scoring Values & Formula Settings",
+                label_quick_preset: "Quick IPSC Presets:",
+                preset_minor_btn: "Minor (A:5, C:3, D:1)",
+                preset_major_btn: "Major (A:5, C:4, D:2)",
+                label_pa: "A Zone Points",
+                label_pc: "C Zone Points",
+                label_pd: "D Zone Points",
+                label_pm: "Miss Penalty",
+                label_pns: "No-Shoot Penalty",
+                label_ppp: "Procedural Penalty",
+                btn_save_formula: "Save & Remember Settings",
+                btn_confirm: "Confirm",
+                footer_text: "IPSC Shot Timer & Target Scoring Web App &copy; 2026 | Tactical Professional",
+                msg_mic_ready_title: "Microphone Ready",
+                msg_mic_ready_desc: "Shot detection system connected.",
+                msg_mic_err_title: "Microphone Failed",
+                msg_mic_err_desc: "Cannot access audio. Please check permissions.",
+                msg_cam_err_title: "Camera Failed",
+                msg_cam_err_desc: "Please use 'Upload Photo' to mark target.",
+                msg_saved_title: "Saved Successfully",
+                msg_saved_desc: "Shooter [{name}]'s score and hit records saved to history!",
+                msg_formula_saved_title: "Settings Saved",
+                msg_formula_saved_desc: "Scoring formula and values have been saved!",
+                msg_export_err_title: "Export Failed",
+                msg_export_err_desc: "No shooting records found to export.",
+                msg_export_ok_title: "CSV Exported",
+                msg_export_ok_desc: "Successfully exported {count} records ({filename}).",
+                card_time: "Time:",
+                card_points: "Points:",
+                card_shots: "Shots:",
+                csv_shooter: "Shooter Name",
+                csv_time: "Timestamp",
+                csv_pf: "Power Factor",
+                csv_total_time: "Total Time (s)",
+                csv_shots: "Shot Count",
+                csv_a: "A Zone Count",
+                csv_c: "C Zone Count",
+                csv_d: "D Zone Count",
+                csv_m: "Miss Count",
+                csv_ns: "No-Shoot Count",
+                csv_p: "Procedural Count",
+                csv_points: "Total Points",
+                csv_hf: "Hit Factor (HF)"
+            }
+        };
+
+        let currentLang = localStorage.getItem('ipsc_language') || 'zh-TW';
+
+        function t(key) {
+            const langSet = i18nData[currentLang] || i18nData['zh-TW'];
+            return langSet[key] || (i18nData['zh-TW'][key] || key);
+        }
+
+        function toggleLangDropdown(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('lang-dropdown-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        document.addEventListener('click', function(e) {
+            const wrapper = document.getElementById('lang-dropdown-wrapper');
+            if (wrapper && !wrapper.contains(e.target)) {
+                const menu = document.getElementById('lang-dropdown-menu');
+                if (menu) menu.classList.add('hidden');
+            }
+        });
+
+        function switchLanguage(lang) {
+            if (!i18nData[lang]) return;
+            currentLang = lang;
+            localStorage.setItem('ipsc_language', lang);
+            
+            // Close dropdown
+            const menu = document.getElementById('lang-dropdown-menu');
+            if (menu) menu.classList.add('hidden');
+
+            applyLanguage();
+        }
+
+        function applyLanguage() {
+            document.documentElement.lang = currentLang;
+
+            // Update title
+            document.getElementById('html-title').innerText = t('page_title');
+
+            // Update current language button label
+            const labelMap = {
+                'zh-TW': '繁體中文',
+                'zh-CN': '简体中文',
+                'en': 'English'
+            };
+            document.getElementById('current-lang-text').innerText = labelMap[currentLang] || '繁體中文';
+
+            // Update dropdown check icons
+            ['zh-TW', 'zh-CN', 'en'].forEach(l => {
+                const check = document.getElementById(`check-${l}`);
+                if (check) {
+                    if (l === currentLang) check.classList.remove('hidden');
+                    else check.classList.add('hidden');
+                }
+            });
+
+            // Update all elements with data-i18n attribute
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (key) {
+                    el.innerHTML = t(key);
+                }
+            });
+
+            // Update input placeholders with data-i18n-placeholder
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (key) {
+                    el.placeholder = t(key);
+                }
+            });
+
+            // Update state badge
+            updateStateBadgeText();
+
+            // Update shots badge
+            updateShotBadgeText();
+
+            // Update power factor badge and formula values
+            updateFormulaUI();
+
+            // Update history list
+            renderHistory();
+        }
+
+        function updateStateBadgeText() {
+            const badge = document.getElementById('timer-state-badge');
+            if (!timerRunning) {
+                if (startTime === 0) {
+                    badge.innerText = t('state_ready');
+                } else {
+                    badge.innerText = t('state_stopped');
+                }
+            } else {
+                badge.innerText = t('state_timing');
+            }
+        }
+
+        function updateShotBadgeText() {
+            const badge = document.getElementById('shot-count-badge');
+            badge.innerText = `${shots.length} ${t('shots_unit')}`;
+        }
+
         // --- State & Settings Variables ---
         let currentTab = 'timer';
         let audioCtx = null;
@@ -525,7 +1018,7 @@
             if (savedShooterName) {
                 document.getElementById('shooter-name-input').value = savedShooterName;
             }
-            updateFormulaUI();
+            applyLanguage();
         }
 
         // Navigation
@@ -533,10 +1026,10 @@
             currentTab = tabId;
             ['timer', 'scoring', 'history'].forEach(id => {
                 document.getElementById(`tab-${id}`).classList.add('hidden');
-                document.getElementById(`nav-${id}`).className = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white";
+                document.getElementById(`nav-${id}`).className = "px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white";
             });
             document.getElementById(`tab-${tabId}`).classList.remove('hidden');
-            document.getElementById(`nav-${tabId}`).className = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-tactical-red text-white shadow";
+            document.getElementById(`nav-${tabId}`).className = "px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-tactical-red text-white shadow";
 
             if (tabId === 'history') {
                 renderHistory();
@@ -596,7 +1089,7 @@
             localStorage.setItem('ipsc_scoring_rules', JSON.stringify(scoringRules));
             updateFormulaUI();
             closeFormulaModal();
-            showModal("計分設定已儲存", "新的計分公式與分值設定已成功寫入記憶！");
+            showModal(t('msg_formula_saved_title'), t('msg_formula_saved_desc'));
         }
 
         function updateFormulaUI() {
@@ -609,10 +1102,10 @@
 
             const badge = document.getElementById('power-factor-badge');
             if (scoringRules.preset === 'major') {
-                badge.innerText = "Major 重裝組";
+                badge.innerText = t('preset_major_badge');
                 badge.className = "text-[10px] bg-tactical-700 border border-tactical-600 px-2 py-0.5 rounded text-rose-400 font-bold";
             } else {
-                badge.innerText = "Minor 輕裝組";
+                badge.innerText = t('preset_minor_badge');
                 badge.className = "text-[10px] bg-tactical-700 border border-tactical-600 px-2 py-0.5 rounded text-amber-400 font-bold";
             }
 
@@ -665,16 +1158,17 @@
                 javascriptNode.connect(audioCtx.destination);
 
                 document.getElementById('mic-status-dot').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2 inline-block animate-pulse";
-                showModal("麥克風已就緒", "槍聲偵測系統已連線。");
+                showModal(t('msg_mic_ready_title'), t('msg_mic_ready_desc'));
                 startOscilloscope();
             } catch (err) {
                 console.error(err);
-                showModal("麥克風啟用失敗", "無法讀取音訊，請確認權限。", true);
+                showModal(t('msg_mic_err_title'), t('msg_mic_err_desc'), true);
             }
         }
 
         function startOscilloscope() {
             const canvas = document.getElementById('oscilloscope');
+            if (!canvas) return;
             const canvasCtx = canvas.getContext('2d');
             canvas.width = canvas.parentElement.clientWidth;
             canvas.height = 64;
@@ -751,7 +1245,7 @@
             else if (delayType === 'fixed') delay = 3.0;
 
             document.getElementById('timer-state-badge').className = "px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-black animate-pulse";
-            document.getElementById('timer-state-badge').innerText = "預備起跑...";
+            document.getElementById('timer-state-badge').innerText = t('state_standby');
             document.getElementById('btn-start-ready').disabled = true;
 
             setTimeout(() => {
@@ -766,9 +1260,9 @@
             lastShotTime = 0;
             shots = [];
             document.getElementById('splits-container').innerHTML = '';
-            document.getElementById('shot-count-badge').innerText = '0 槍';
+            document.getElementById('shot-count-badge').innerText = `0 ${t('shots_unit')}`;
             document.getElementById('timer-state-badge').className = "px-2.5 py-1 rounded-full text-xs font-bold bg-tactical-red text-white animate-pulse";
-            document.getElementById('timer-state-badge').innerText = "計時中...";
+            document.getElementById('timer-state-badge').innerText = t('state_timing');
 
             timerInterval = setInterval(() => {
                 const elapsed = (performance.now() - startTime) / 1000;
@@ -787,7 +1281,7 @@
             shots.push(timeSec);
             const split = shots.length === 1 ? timeSec : (shots[shots.length - 1] - shots[shots.length - 2]);
             
-            document.getElementById('shot-count-badge').innerText = `${shots.length} 槍`;
+            document.getElementById('shot-count-badge').innerText = `${shots.length} ${t('shots_unit')}`;
             const container = document.getElementById('splits-container');
             if (shots.length === 1) container.innerHTML = '';
 
@@ -795,8 +1289,8 @@
             shotRow.className = "flex justify-between items-center bg-tactical-900 border border-tactical-700 px-3 py-2 rounded-xl text-xs font-mono";
             shotRow.innerHTML = `
                 <span class="text-tactical-red font-bold">#${shots.length}</span>
-                <span class="text-slate-300">時間: <strong>${timeSec.toFixed(2)}s</strong></span>
-                <span class="text-slate-400">Split: +${split.toFixed(2)}s</span>
+                <span class="text-slate-300">${t('split_time')} <strong>${timeSec.toFixed(2)}s</strong></span>
+                <span class="text-slate-400">${t('split_delta')} +${split.toFixed(2)}s</span>
             `;
             container.prepend(shotRow);
         }
@@ -806,11 +1300,11 @@
             timerRunning = false;
             clearInterval(timerInterval);
             document.getElementById('timer-state-badge').className = "px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-600 text-white";
-            document.getElementById('timer-state-badge').innerText = "已停止 / 結算";
+            document.getElementById('timer-state-badge').innerText = t('state_stopped');
             document.getElementById('btn-start-ready').disabled = false;
 
             const finalTime = parseFloat(document.getElementById('main-time-display').innerText);
-            document.getElementById('hf-time-display').innerText = finalTime.toFixed(2) + " 秒";
+            document.getElementById('hf-time-display').innerText = finalTime.toFixed(2) + " " + t('sec_abbr');
             calculateHitFactor();
         }
 
@@ -830,7 +1324,7 @@
                 controls.classList.remove('hidden');
             } catch (err) {
                 console.error(err);
-                showModal("相機啟動失敗", "請選取「上傳照片」功能以進行靶紙標記。", true);
+                showModal(t('msg_cam_err_title'), t('msg_cam_err_desc'), true);
             }
         }
 
@@ -996,14 +1490,15 @@
 
             if (totalPoints < 0) totalPoints = 0;
 
-            document.getElementById('hf-points-display').innerText = totalPoints + " 分";
+            document.getElementById('hf-points-display').innerText = totalPoints + " " + t('pts_abbr');
             const hitFactor = time > 0 ? (totalPoints / time) : 0;
             document.getElementById('hf-result-display').innerText = hitFactor.toFixed(4);
         }
 
-        // Session History & Shooter Signature (Feature Request 1)
+        // Session History & Shooter Signature
         function saveCurrentSession() {
-            const shooterName = document.getElementById('shooter-name-input').value.trim() || '未署名射手';
+            const defaultName = t('default_shooter');
+            const shooterName = document.getElementById('shooter-name-input').value.trim() || defaultName;
             localStorage.setItem('ipsc_last_shooter', shooterName);
 
             const timeText = document.getElementById('hf-time-display').innerText;
@@ -1028,13 +1523,15 @@
 
             sessionHistory.unshift(record);
             localStorage.setItem('ipsc_history', JSON.stringify(sessionHistory));
-            showModal("儲存成功", `射手 [${shooterName}] 的成績與彈孔紀錄已成功寫入歷史數據庫！`);
+            const msgDesc = t('msg_saved_desc').replace('{name}', shooterName);
+            showModal(t('msg_saved_title'), msgDesc);
+            renderHistory();
         }
 
         function renderHistory() {
             const container = document.getElementById('history-container');
             if (sessionHistory.length === 0) {
-                container.innerHTML = '<div class="text-center text-xs text-slate-500 py-12 font-mono">尚無儲存的紀錄，快去完成一場射擊練習吧！</div>';
+                container.innerHTML = `<div class="text-center text-xs text-slate-500 py-12 font-mono">${t('history_empty')}</div>`;
                 return;
             }
 
@@ -1043,24 +1540,25 @@
                 const card = document.createElement('div');
                 card.className = "bg-tactical-900 border border-tactical-700 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3";
                 
+                const pfLabel = rec.preset === 'Major' ? t('preset_major_badge') : t('preset_minor_badge');
                 const pfClass = rec.preset === 'Major' ? 'text-rose-400 border-rose-500/40 bg-rose-500/10' : 'text-amber-400 border-amber-500/40 bg-amber-500/10';
 
                 card.innerHTML = `
                     <div class="space-y-1 w-full sm:w-auto">
                         <div class="flex items-center justify-between sm:justify-start gap-2">
                             <span class="text-sm font-bold text-white flex items-center">
-                                <i class="fa-solid fa-user-ninja text-tactical-red mr-1.5"></i> ${rec.shooter || '未署名射手'}
+                                <i class="fa-solid fa-user-ninja text-tactical-red mr-1.5"></i> ${rec.shooter || t('default_shooter')}
                             </span>
-                            <span class="text-[10px] border px-2 py-0.5 rounded font-bold ${pfClass}">${rec.preset || 'Minor'}</span>
+                            <span class="text-[10px] border px-2 py-0.5 rounded font-bold ${pfClass}">${pfLabel}</span>
                             <span class="text-[10px] text-slate-500 font-mono ml-auto sm:ml-2">${rec.date}</span>
                         </div>
                         <div class="text-sm font-bold text-slate-200">
                             Hit Factor (HF): <span class="text-tactical-red font-digit text-base">${rec.hitFactor}</span>
                         </div>
                         <div class="text-xs text-slate-400 font-mono flex flex-wrap gap-x-3 gap-y-1">
-                            <span>用時: <strong class="text-white">${rec.time}s</strong></span>
-                            <span>總分: <strong class="text-white">${rec.points}分</strong></span>
-                            <span>總發數: <strong class="text-white">${rec.shotCount || 0}發</strong></span>
+                            <span>${t('card_time')} <strong class="text-white">${rec.time}s</strong></span>
+                            <span>${t('card_points')} <strong class="text-white">${rec.points} ${t('pts_abbr')}</strong></span>
+                            <span>${t('card_shots')} <strong class="text-white">${rec.shotCount || 0} ${t('shots_unit_count')}</strong></span>
                         </div>
                         <div class="text-[11px] text-slate-400 font-mono bg-tactical-800/80 p-2 rounded-lg border border-tactical-700/60 mt-2">
                             <span class="text-emerald-400">A:${rec.hits.A}</span> | 
@@ -1079,41 +1577,42 @@
             });
         }
 
-        // CSV Export Tool (Feature Request 2)
+        // CSV Export Tool
         function exportToCSV() {
             if (sessionHistory.length === 0) {
-                showModal("無法匯出", "歷史紀錄庫中目前沒有任何成績資料。", true);
+                showModal(t('msg_export_err_title'), t('msg_export_err_desc'), true);
                 return;
             }
 
-            // UTF-8 Byte Order Mark (BOM) to guarantee Traditional Chinese rendering in MS Excel
+            // UTF-8 Byte Order Mark (BOM) to guarantee CJK rendering in MS Excel
             let csvContent = "\uFEFF";
             
             // Header Row
             const headers = [
-                "射手姓名 (Shooter Name)",
-                "日期時間 (Timestamp)",
-                "賽制分級 (Power Factor)",
-                "總用時/秒 (Total Time/s)",
-                "總擊發數 (Shot Count)",
-                "A區數量 (A Zone)",
-                "C區數量 (C Zone)",
-                "D區數量 (D Zone)",
-                "脫靶數 (Misses)",
-                "擊中罰靶 (No-Shoot)",
-                "程序犯規 (Procedural)",
-                "總得分 (Total Points)",
-                "Hit Factor (HF)"
+                t('csv_shooter'),
+                t('csv_time'),
+                t('csv_pf'),
+                t('csv_total_time'),
+                t('csv_shots'),
+                t('csv_a'),
+                t('csv_c'),
+                t('csv_d'),
+                t('csv_m'),
+                t('csv_ns'),
+                t('csv_p'),
+                t('csv_points'),
+                t('csv_hf')
             ];
             
             csvContent += headers.map(h => `"${h}"`).join(",") + "\r\n";
 
             // Record Rows
             sessionHistory.forEach(rec => {
+                const pfText = rec.preset === 'Major' ? t('preset_major_badge') : t('preset_minor_badge');
                 const row = [
-                    rec.shooter || "未署名射手",
+                    rec.shooter || t('default_shooter'),
                     rec.date,
-                    rec.preset || "Minor",
+                    pfText,
                     rec.time,
                     rec.shotCount || 0,
                     rec.hits.A || 0,
@@ -1140,7 +1639,8 @@
             link.click();
             document.body.removeChild(link);
             
-            showModal("CSV 匯出成功", `已成功下載 ${sessionHistory.length} 筆練習成績匯出檔 (${fileName})。`);
+            const msgDesc = t('msg_export_ok_desc').replace('{count}', sessionHistory.length).replace('{filename}', fileName);
+            showModal(t('msg_export_ok_title'), msgDesc);
         }
 
         function deleteRecord(id) {
