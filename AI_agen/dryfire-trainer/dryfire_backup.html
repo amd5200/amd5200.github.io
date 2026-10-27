@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>乾火訓練模擬器 — Dry Fire Trainer</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0c10">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: #050608; color: #e8eaed; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; touch-action: none; }
+.stage { position: relative; width: 100vw; height: 100vh; }
+#cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: center; }
+#overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.crosshair {
+  position: absolute; width: 28px; height: 28px; border: 2.5px solid #00ffff; border-radius: 50%;
+  transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 16px #00ffff, 0 0 32px rgba(0,255,255,0.4);
+  display: none; z-index: 30;
+}
+.crosshair::after { content: ''; position: absolute; inset: -6px; border-top: 2.5px solid #00ffff; border-bottom: 2.5px solid #00ffff; transform: rotate(90deg); }
+.crosshair::before { content: ''; position: absolute; inset: 3px; border: 1.5px solid rgba(255,255,255,0.8); border-radius: 50%; }
+
+/* 左側控制面板 */
+.sidebar {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 270px;
+  background: rgba(10, 12, 18, 0.88); backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(255,255,255,0.12);
+  padding: 14px; gap: 10px; z-index: 40;
+  display: flex; flex-direction: column; pointer-events: auto;
+}
+.stat-row { display: flex; gap: 8px; flex-wrap: wrap; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px; }
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 48px; }
+.label { font-size: 9px; color: #8a8f98; text-transform: uppercase; letter-spacing: 0.08em; }
+.value { font-size: 15px; font-variant-numeric: tabular-nums; color: #e8eaed; font-weight: 600; }
+.controls { display: flex; gap: 6px; flex-wrap: wrap; }
+button { background: #14161d; border: 1px solid #2a2e38; color: #e8eaed; padding: 7px 10px; border-radius: 7px; font-size: 12px; cursor: pointer; font-family: inherit; flex: 1 1 78px; transition: background 0.15s, border-color 0.15s; }
+button:hover { background: #1c202a; border-color: #3d4352; }
+button:active { background: #242938; }
+button.primary { border-color: #00ffff; color: #00ffff; box-shadow: 0 0 12px rgba(0,255,255,0.25); font-weight: 600; }
+#btnFire { background: #b30000; border-color: #ff4444; color: #fff; font-weight: bold; flex: 1 1 78px; }
+#btnFire:hover { background: #cc1111; }
+#btnFire:active { background: #ff4444; }
+.par-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8a8f98; }
+.par-row input { width: 44px; background: #14161d; border: 1px solid #2a2e38; color: #e8eaed; padding: 3px 5px; border-radius: 4px; }
+#detect { font-size: 12px; color: #44ff44; font-variant-numeric: tabular-nums; font-weight: 600; }
+#status { font-size: 12px; color: #ffb347; line-height: 1.4; }
+.splits { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #e8eaed; max-height: 140px; overflow-y: auto; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; margin-top: 4px; flex: 1; }
+.split { display: flex; justify-content: space-between; padding: 2px 6px; background: rgba(255,255,255,0.04); border-radius: 4px; }
+.split.good { color: #44ff44; }
+.split.bad { color: #ff4444; }
+@keyframes recoil { 0% { transform: translate(0,0); } 25% { transform: translate(-4px, 2px) scale(0.99); } 50% { transform: translate(4px, -2px); } 75% { transform: translate(-2px, 1px); } 100% { transform: translate(0,0); } }
+.recoil { animation: recoil 180ms ease-out; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <video id="cam" playsinline autoplay muted></video>
+  <canvas id="overlay"></canvas>
+  <div id="crosshair" class="crosshair"></div>
+
+  <!-- 左側控制面板 -->
+  <aside class="sidebar">
+    <div class="stat-row">
+      <div class="stat"><span class="label">模式</span><span id="mode" class="value">手槍</span></div>
+      <div class="stat"><span class="label">彈藥</span><span id="ammo" class="value">17</span></div>
+      <div class="stat"><span class="label">分數</span><span id="score" class="value">0</span></div>
+      <div class="stat"><span class="label">命中率</span><span id="acc" class="value">—</span></div>
+      <div class="stat"><span class="label">用時</span><span id="time" class="value">0.00s</span></div>
+    </div>
+
+    <div class="controls">
+      <button id="btnCam">切換鏡頭</button>
+      <button id="btnCamRetry" style="display:none">重試相機</button>
+      <button id="btnMode">切換槍種</button>
+      <button id="btnCalib">校準</button>
+      <button id="btnReload">換彈夾</button>
+      <button id="btnStart" class="primary">開始計時</button>
+      <button id="btnFire">扣扳機</button>
+    </div>
+
+    <div class="par-row"><label>靶時 <input id="parTime" type="number" value="3.0" step="0.1">s</label></div>
+
+    <div id="detect" class="detect-row">偵測：載入中…</div>
+    <div id="status">正在初始化相機與姿態偵測模型…</div>
+    <div id="splits" class="splits"></div>
+  </aside>
+</div>
+
+<!-- 姿態偵測引擎 (TensorFlow.js + PoseNet) -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js"></script>
+<script>
+// ================= 工具與骨架常數 =================
+const PART_NAMES = [
+  'nose', 'leftEye', 'rightEye', 'leftEar', 'rightEar',
+  'leftShoulder', 'rightShoulder',
+  'leftElbow', 'rightElbow',
+  'leftWrist', 'rightWrist',
+  'leftHip', 'rightHip',
+  'leftKnee', 'rightKnee',
+  'leftAnkle', 'rightAnkle'
+];
+
+const NAME_TO_ZH = {
+  nose: '鼻子', leftEye: '左眼', rightEye: '右眼',
+  leftEar: '左耳', rightEar: '右耳',
+  leftShoulder: '左肩', rightShoulder: '右肩',
+  leftElbow: '左肘', rightElbow: '右肘',
+  leftWrist: '左腕', rightWrist: '右腕(瞄準)',
+  leftHip: '左胯', rightHip: '右胯(彈匣)',
+  leftKnee: '左膝', rightKnee: '右膝',
+  leftAnkle: '左踝', rightAnkle: '右踝'
+};
+
+const NAME_TO_INDEX = {
+  nose: 0, leftEye: 1, rightEye: 2, leftEar: 3, rightEar: 4,
+  leftShoulder: 5, rightShoulder: 6,
+  leftElbow: 7, rightElbow: 8,
+  leftWrist: 9, rightWrist: 10,
+  leftHip: 11, rightHip: 12,
+  leftKnee: 13, rightKnee: 14,
+  leftAnkle: 15, rightAnkle: 16
+};
+
+// 完整全身與面部骨架連線
+const EDGE_NAMES = [
+  // 面部輪廓
+  ['nose', 'leftEye'], ['nose', 'rightEye'],
+  ['leftEye', 'leftEar'], ['rightEye', 'rightEar'],
+  // 雙肩與手臂（射擊核心瞄準鏈）
+  ['leftShoulder', 'rightShoulder'],
+  ['leftShoulder', 'leftElbow'],
+  ['leftElbow', 'leftWrist'],
+  ['rightShoulder', 'rightElbow'],
+  ['rightElbow', 'rightWrist'],
+  // 軀幹
+  ['leftShoulder', 'leftHip'],
+  ['rightShoulder', 'rightHip'],
+  ['leftHip', 'rightHip'],
+  // 腿部
+  ['leftHip', 'leftKnee'],
+  ['leftKnee', 'leftAnkle'],
+  ['rightHip', 'rightKnee'],
+  ['rightKnee', 'rightAnkle']
+];
+
+// ================= Camera 相機管理器 =================
+class Camera {
+  constructor(videoEl, { facingMode = 'user', width = 1280, height = 720 } = {}) {
+    this.video = videoEl;
+    this.facingMode = facingMode;
+    this.width = width;
+    this.height = height;
+    this.mirror = facingMode === 'user';
+    this.ready = false;
+  }
+
+  async start() {
+    let lastErr;
+    const attempts = [
+      { video: { facingMode: this.facingMode, width: { ideal: this.width }, height: { ideal: this.height } } },
+      { video: { facingMode: this.facingMode } },
+      { video: true }
+    ];
+    for (const constraints of attempts) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        this.video.srcObject = stream;
+        await new Promise((res) => { this.video.onloadedmetadata = res; });
+        this.video.width = this.video.videoWidth || this.width;
+        this.video.height = this.video.videoHeight || this.height;
+        await this.video.play();
+        this.ready = true;
+        this.mirror = this.facingMode === 'user';
+        this.video.style.transform = this.mirror ? 'scaleX(-1)' : 'none';
+        return this;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('無法取得相機串流');
+  }
+
+  async stop() {
+    const stream = this.video.srcObject;
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    this.video.srcObject = null;
+    this.ready = false;
+  }
+
+  async switchCamera() {
+    this.facingMode = this.facingMode === 'user' ? 'environment' : 'user';
+    this.mirror = this.facingMode === 'user';
+    await this.stop();
+    await this.start();
+  }
+}
+
+// ================= PoseNet 偵測器 =================
+class PoseNetDetector {
+  constructor() {
+    this.net = null;
+    this.lastPose = null;
+    this.running = false;
+    this.processing = false;
+  }
+
+  async load(videoEl) {
+    this.net = await posenet.load({
+      architecture: 'MobileNetV1',
+      outputStride: 16,
+      inputResolution: { width: 513, height: 513 },
+      multiplier: 0.75,
+      quantBytes: 2
+    });
+    this.running = true;
+    this.startDetectionLoop(videoEl);
+  }
+
+  startDetectionLoop(videoEl) {
+    const frameLoop = async () => {
+      if (!this.running) return;
+
+      if (videoEl && videoEl.readyState >= 2 && !this.processing && this.net) {
+        if (!videoEl.width || videoEl.width !== videoEl.videoWidth) {
+          videoEl.width = videoEl.videoWidth || 1280;
+          videoEl.height = videoEl.videoHeight || 720;
+        }
+        this.processing = true;
+        try {
+          // flipHorizontal 設為 false，保持原始畫面像素座標，在渲染與對準時依鏡頭 mirror 統一對應
+          const pose = await this.net.estimateSinglePose(videoEl, {
+            flipHorizontal: false,
+            decodingMethod: 'single-person',
+            maxDetections: 1,
+            scoreThreshold: 0.2,
+            nmsRadius: 20
+          });
+
+          if (pose && pose.keypoints) {
+            window._rawPose0 = pose.keypoints[0];
+            window._rawPoseKeys = Object.keys(pose.keypoints[0]);
+            this.lastPose = this.convertPose(pose, videoEl.videoWidth || 640, videoEl.videoHeight || 480);
+          }
+        } catch (e) {
+          console.warn('姿態推論警告:', e);
+        } finally {
+          this.processing = false;
+        }
+      }
+
+      if (this.running) {
+        requestAnimationFrame(frameLoop);
+      }
+    };
+
+    requestAnimationFrame(frameLoop);
+  }
+
+  convertPose(pose, width, height) {
+    if (!pose || !pose.keypoints) return null;
+    return pose.keypoints.map((k, i) => {
+      const pos = k.position || k;
+      const partName = k.part || PART_NAMES[i] || `point${i}`;
+      return {
+        index: NAME_TO_INDEX[partName] ?? i,
+        name: partName,
+        x: pos.x ?? 0,
+        y: pos.y ?? 0,
+        nx: (pos.x ?? 0) / width,
+        ny: (pos.y ?? 0) / height,
+        score: k.score || 0
+      };
+    });
+  }
+
+  detect() {
+    return this.lastPose;
+  }
+
+  stop() {
+    this.running = false;
+  }
+}
+
+// ================= Aim 瞄準射擊計算 =================
+class Aim {
+  constructor() {
+    this.smooth = { x: 0, y: 0 };
+    this.alpha = 0.35;
+    this.offset = { x: 0, y: 0 };
+    this.calibrated = false;
+    this.mode = 'pistol'; // pistol | rifle
+    this.last = null;
+    this.wristScreenPos = null;
+  }
+
+  setMode(mode) { this.mode = mode; }
+
+  compute(keypoints, videoSize, canvasSize, mirror, fb) {
+    if (!keypoints || keypoints.length === 0) { this.last = null; return null; }
+    const k = (name) => keypoints.find((p) => p.name === name) || { x: 0, y: 0, score: 0 };
+
+    const rSh = k('rightShoulder'), rEl = k('rightElbow'), rWs = k('rightWrist');
+    const lSh = k('leftShoulder'), lWs = k('leftWrist');
+
+    // 檢查是否有足夠的信心度進行瞄準
+    const hasRightArm = (rWs.score > 0.2 && rEl.score > 0.2);
+    if (!hasRightArm) {
+      this.last = null;
+      return null;
+    }
+
+    let dx = rWs.x - rEl.x, dy = rWs.y - rEl.y;
+    if (this.mode === 'rifle' && lWs.score > 0.2 && lSh.score > 0.2) {
+      const mx = (rSh.x + lSh.x) / 2, my = (rSh.y + lSh.y) / 2;
+      const ox = (rWs.x + lWs.x) / 2;
+      const oy = (rWs.y + lWs.y) / 2;
+      dx = ox - mx;
+      dy = oy - my;
+    }
+
+    const len = Math.hypot(dx, dy) || 1;
+    const reach = 260; // 槍管延伸距離 (px in video space)
+    const tipX = rWs.x + (dx / len) * reach;
+    const tipY = rWs.y + (dy / len) * reach;
+
+    // 將視訊座標映射到 Canvas 畫面像素座標 (對齊 object-fit: cover 與鏡頭鏡像)
+    const vx = mirror ? (videoSize.width - tipX) : tipX;
+    const cx = vx * fb.scale + fb.sx;
+    const cy = tipY * fb.scale + fb.sy;
+
+    // 記錄右手腕在畫面上的座標，供繪製輔助瞄準線
+    const rws_vx = mirror ? (videoSize.width - rWs.x) : rWs.x;
+    this.wristScreenPos = {
+      x: rws_vx * fb.scale + fb.sx,
+      y: rWs.y * fb.scale + fb.sy
+    };
+
+    this.smooth.x += (cx - this.smooth.x) * this.alpha;
+    this.smooth.y += (cy - this.smooth.y) * this.alpha;
+
+    const x = Math.max(0, Math.min(canvasSize.width, this.smooth.x - this.offset.x));
+    const y = Math.max(0, Math.min(canvasSize.height, this.smooth.y - this.offset.y));
+
+    this.last = {
+      x, y,
+      raw: { x: cx, y: cy },
+      confidence: Math.min(rWs.score, rEl.score),
+      wrist: this.wristScreenPos
+    };
+    return this.last;
+  }
+
+  calibrate(x, y) {
+    this.offset = { x: this.smooth.x - x, y: this.smooth.y - y };
+    this.calibrated = true;
+  }
+
+  setManual(cx, cy) {
+    this.smooth = { x: cx, y: cy };
+    this.wristScreenPos = null;
+    this.last = { x: cx, y: cy, raw: { x: cx, y: cy }, confidence: 1 };
+    return this.last;
+  }
+}
+
+// ================= Target 靶紙繪製與判定 =================
+class Target {
+  constructor(w, h) {
+    this.w = w; this.h = h;
+    this.cx = w * 0.72;
+    this.cy = h * 0.5;
+    this.zones = [
+      { r: 35, s: 10, c: '#ff3344' },
+      { r: 65, s: 7, c: '#ffaa00' },
+      { r: 95, s: 5, c: '#00e5ff' }
+    ];
+    this.hits = [];
+    this.flash = null;
+  }
+
+  resize(w, h) {
+    this.w = w; this.h = h;
+    this.cx = w * 0.72;
+    this.cy = h * 0.5;
+  }
+
+  draw(ctx) {
+    ctx.save();
+    for (const z of this.zones) {
+      ctx.strokeStyle = z.c;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(this.cx, this.cy, z.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // 靶心中心小圓
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.arc(this.cx, this.cy, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 命中點標記
+    for (const h of this.hits) {
+      ctx.fillStyle = '#00ffff';
+      ctx.shadowColor = '#00ffff';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 槍口射擊瞬間火花反饋
+    if (this.flash) {
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.shadowColor = '#ffffaa';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.arc(this.flash.x, this.flash.y, 22, 0, Math.PI * 2);
+      ctx.fill();
+      this.flash.ttl--;
+      if (this.flash.ttl <= 0) this.flash = null;
+    }
+    ctx.restore();
+  }
+
+  test(x, y) {
+    const d = Math.hypot(x - this.cx, y - this.cy);
+    let hit = false; let score = 0;
+    for (const z of this.zones) {
+      if (d <= z.r) { hit = true; score = z.s; break; }
+    }
+    if (hit) this.hits.push({ x, y, score, t: Date.now() });
+    this.flash = { x, y, ttl: 5 };
+    return { hit, score, x, y, d };
+  }
+}
+
+// ================= Audio 音效合成 =================
+class Audio {
+  constructor() { this.ctx = null; this.ready = false; }
+
+  ensure() {
+    if (this.ctx) return;
+    if (typeof window === 'undefined') return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.ready = true;
+  }
+
+  note(freq, type, duration, vol = 0.1) {
+    if (!this.ready) this.ensure();
+    if (!this.ctx) return;
+    const t = this.ctx;
+    const o = t.createOscillator();
+    const g = t.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t.currentTime);
+    g.gain.setValueAtTime(vol, t.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0005, t.currentTime + duration);
+    o.connect(g); g.connect(t.destination);
+    o.start(); o.stop(t.currentTime + duration);
+  }
+
+  dryFire() {
+    this.note(520, 'square', 0.05, 0.09);
+    this.note(380, 'square', 0.05, 0.07);
+  }
+  hit() {
+    this.note(900, 'sine', 0.1, 0.1);
+    this.note(1400, 'sine', 0.07, 0.08);
+  }
+  miss() { this.note(110, 'sawtooth', 0.22, 0.1); }
+  reload() {
+    this.note(140, 'sawtooth', 0.14, 0.09);
+    setTimeout(() => this.note(260, 'sine', 0.22, 0.09), 120);
+  }
+}
+
+// ================= IndexedDB 紀錄儲存 =================
+const DB_NAME = 'dryfire';
+const DB_VERSION = 1;
+const STORE = 'records';
+let dbPromise = null;
+
+function openDB() {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('ts', 'ts', { unique: false });
+        store.createIndex('mode', 'mode', { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return dbPromise;
+}
+
+const Storage = {
+  async add(rec) {
+    try {
+      const db = await openDB();
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).add({ ...rec, ts: rec.ts || Date.now() });
+      return tx.complete;
+    } catch (e) {
+      console.warn('IDB add failed', e);
+    }
+  }
+};
+
+// ================= Training 訓練狀態流程 =================
+class Training {
+  constructor({ audio, storage }) {
+    this.audio = audio; this.storage = storage;
+    this.capacity = { pistol: 17, rifle: 30 };
+    this.mode = 'pistol';
+    this.ammo = this.capacity.pistol;
+    this.state = 'idle'; // idle | shooting | reloading
+    this.score = 0; this.shots = 0; this.hits = 0; this.startTime = 0;
+    this.parTime = 3.0; this.splits = [];
+  }
+
+  setMode(m) {
+    this.mode = m;
+    this.ammo = this.capacity[m];
+    this.state = 'idle';
+    this.score = 0; this.shots = 0; this.hits = 0; this.startTime = 0;
+    this.splits = [];
+  }
+
+  setParTime(seconds) { this.parTime = Math.max(0.5, Number(seconds) || 3.0); }
+
+  reload() {
+    if (this.state === 'reloading') return;
+    this.state = 'reloading';
+    this.audio.reload();
+    const m = this.mode;
+    setTimeout(() => {
+      this.ammo = this.capacity[m];
+      this.state = 'shooting';
+    }, 750);
+  }
+
+  startTimer() {
+    this.state = 'shooting';
+    this.score = 0; this.shots = 0; this.hits = 0;
+    this.splits = [];
+    this.startTime = performance.now();
+    this.ammo = this.capacity[this.mode];
+  }
+
+  shot(hit, points) {
+    if (this.state === 'idle') return false;
+    if (this.state === 'reloading') return false;
+    if (this.ammo <= 0) { this.reload(); return false; }
+    this.ammo--;
+    this.shots++;
+    this.splits.push(this.elapsed());
+    if (hit) { this.hits++; this.score += points; this.audio.hit(); }
+    else this.audio.miss();
+    if (this.ammo <= 0) {
+      this.state = 'reloading';
+      setTimeout(() => { this.ammo = this.capacity[this.mode]; this.state = 'shooting'; }, 750);
+    }
+    return true;
+  }
+
+  accuracy() { return this.shots ? Math.round((this.hits / this.shots) * 100) : 0; }
+  elapsed() { return this.startTime ? (performance.now() - this.startTime) / 1000 : 0; }
+  getSplits() { return this.splits.slice(); }
+  getParTime() { return this.parTime; }
+
+  async save() {
+    await this.storage.add({
+      mode: this.mode, score: this.score, shots: this.shots, hits: this.hits,
+      acc: this.accuracy(), time: this.elapsed(), splits: this.splits,
+      parTime: this.parTime, ts: Date.now()
+    });
+  }
+}
+
+// ================= Reload Gesture 換彈手勢 =================
+class ReloadGesture {
+  constructor({ onReload, cooldown = 750 } = {}) {
+    this.onReload = onReload;
+    this.cooldown = cooldown;
+    this.state = 'idle';
+    this.lastTime = 0;
+    this.hip = null;
+    this.wrist = null;
+  }
+
+  feed(hip, wrist, now) {
+    this.hip = hip;
+    this.wrist = wrist;
+    if (!hip || !wrist || (hip.score || 0) < 0.25 || (wrist.score || 0) < 0.25) return;
+
+    const inWaist =
+      wrist.y > hip.y + 20 &&
+      Math.abs(wrist.x - hip.x) < 120;
+
+    if (this.state === 'idle' && inWaist) {
+      this.state = 'inWaist';
+    } else if (this.state === 'inWaist' && !inWaist && wrist.y < hip.y - 30) {
+      if (now - this.lastTime > this.cooldown) {
+        this.lastTime = now;
+        this.state = 'idle';
+        if (this.onReload) this.onReload();
+      } else {
+        this.state = 'idle';
+      }
+    }
+  }
+
+  draw(ctx) {
+    // 只有在右胯位置信心度足夠時才繪製彈匣拔取區
+    if (!this.hip || (this.hip.score || 0) < 0.25) return;
+    ctx.save();
+    ctx.fillStyle = this.state === 'inWaist' ? 'rgba(255,220,0,0.35)' : 'rgba(255,220,0,0.12)';
+    ctx.beginPath();
+    ctx.arc(this.hip.x, this.hip.y, 80, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = this.state === 'inWaist' ? '#ffee00' : 'rgba(255,220,0,0.5)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.fillStyle = '#ffee00';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('彈匣拔匣區', this.hip.x - 30, this.hip.y - 88);
+    ctx.restore();
+  }
+}
+
+// ================= 主程式與畫面循環 =================
+const camEl = document.getElementById('cam');
+const ovl = document.getElementById('overlay');
+const ctx = ovl.getContext('2d');
+const cross = document.getElementById('crosshair');
+const modeEl = document.getElementById('mode');
+const ammoEl = document.getElementById('ammo');
+const scoreEl = document.getElementById('score');
+const accEl = document.getElementById('acc');
+const timeEl = document.getElementById('time');
+const status = document.getElementById('status');
+const fireBtn = document.getElementById('btnFire');
+const camRetry = document.getElementById('btnCamRetry');
+const detectEl = document.getElementById('detect');
+const parInput = document.getElementById('parTime');
+const splitsEl = document.getElementById('splits');
+
+const camera = new Camera(camEl, { facingMode: 'user' });
+const detector = new PoseNetDetector();
+const aim = new Aim();
+const audio = new Audio();
+const training = new Training({ audio, storage: Storage });
+const gesture = new ReloadGesture({ onReload: () => {
+  training.reload(); updateHUD();
+  status.textContent = '偵測到換彈夾手勢（腰部拔匣 → 裝填）';
+}});
+let target = null;
+
+let width, height;
+function resize() {
+  width = ovl.width = window.innerWidth;
+  height = ovl.height = window.innerHeight;
+  if (target) target.resize(width, height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+let sim = false;
+let simX = width / 2, simY = height / 2;
+
+// 精確適配 object-fit: cover 裁切與縮放比例
+function fitBox(vw, vh) {
+  const scale = Math.max(width / vw, height / vh);
+  return {
+    scale,
+    sx: (width - vw * scale) / 2,
+    sy: (height - vh * scale) / 2
+  };
+}
+
+function updateHUD() {
+  modeEl.textContent = training.mode === 'pistol' ? '手槍' : '步槍';
+  ammoEl.textContent = training.ammo;
+  scoreEl.textContent = training.score;
+  accEl.textContent = training.accuracy() + '%';
+  timeEl.textContent = training.elapsed().toFixed(2) + 's';
+}
+
+function renderSplits() {
+  const splits = training.getSplits();
+  const par = training.getParTime();
+  splitsEl.innerHTML = splits.map((s, i) =>
+    `<div class="split ${s <= par ? 'good' : 'bad'}">${i + 1}. ${s.toFixed(2)}s${s <= par ? ' ✓' : ''}</div>`
+  ).join('');
+}
+
+async function main() {
+  if (window.location.protocol === 'file:') {
+    status.innerHTML = '提示：瀏覽器安全性限制 <b style="color:#ff4444">file://</b> 無法開啟相機，請使用本地伺服器（例如執行: <code>python -m http.server 8000</code>，再用 <code>http://localhost:8000/dryfire.html</code> 開啟）';
+  } else {
+    status.textContent = '啟動相機中…';
+  }
+
+  let camOk = false;
+  try {
+    await camera.start();
+    camOk = true;
+  } catch (e) {
+    console.error('相機開啟失敗', e);
+    camOk = false;
+  }
+
+  if (!camOk) {
+    sim = true;
+    camEl.style.display = 'none';
+    camRetry.style.display = '';
+    detectEl.textContent = "RAW: " + JSON.stringify(window._rawPose0);
+    detectEl.style.color = '#ffb347';
+    status.textContent = '已進入模擬模式：在畫面上移動滑鼠或手指以對準，點擊開槍。使用鏡頭請透過 localhost 或 HTTPS 授權相機';
+    status.style.color = '#ffb347';
+  } else {
+    camRetry.style.display = 'none';
+    status.textContent = '載入 PoseNet 姿態模型中…';
+    try {
+      await detector.load(camEl);
+      status.textContent = '模型載入完成！站在鏡頭前即可看見人體標記點。對準靶心，點「校準」後點「開始計時」';
+      status.style.color = '#44ff44';
+    } catch (e) {
+      sim = true;
+      camEl.style.display = 'none';
+      camRetry.style.display = '';
+      status.textContent = 'PoseNet 模型載入失敗：' + (e && e.message ? e.message : String(e));
+      status.style.color = '#ff4444';
+      console.error('PoseNet 載入失敗', e);
+    }
+  }
+
+  target = new Target(width, height);
+  requestAnimationFrame(loop);
+}
+
+function loop(now) {
+  ctx.clearRect(0, 0, width, height);
+  let res = null;
+
+  if (!sim && camera.ready) {
+    const pose = detector.detect();
+    if (pose && pose.length) {
+      const vw = camEl.videoWidth || 1280;
+      const vh = camEl.videoHeight || 720;
+      const fb = fitBox(vw, vh);
+
+      // 視訊鏡像與 object-fit: cover 精準對齊映射公式
+      const map = (p) => ({
+        x: (camera.mirror ? (vw - p.x) : p.x) * fb.scale + fb.sx,
+        y: p.y * fb.scale + fb.sy
+      });
+
+      const validKps = pose.filter((p) => (p.score || 0) >= 0.2);
+      const maxScore = pose.reduce((m, p) => Math.max(m, p.score || 0), 0);
+      const p0 = pose.find(p=>p.name==='nose') || pose[0];
+      const m0 = p0 ? map(p0) : {x:0,y:0};
+      detectEl.textContent = `偵測中：${validKps.length}/17 標記點 (最高 ${(maxScore*100).toFixed(0)}%)`;
+      detectEl.style.color = validKps.length >= 4 ? '#44ff44' : '#ffb347';
+
+      const byName = new Map();
+      for (const p of pose) byName.set(p.name, p);
+      const get = (name) => byName.get(name) || { x: 0, y: 0, score: 0 };
+
+      // 拔匣手勢餵入 (腰部與手腕)
+      const rHip = get('rightHip');
+      const rWrist = get('rightWrist');
+      const hipMapped = { ...map(rHip), score: rHip.score };
+      const wristMapped = { ...map(rWrist), score: rWrist.score };
+      gesture.feed(hipMapped, wristMapped, now);
+      gesture.draw(ctx);
+
+      // 1. 繪製全身骨架連線
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.85)';
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = 'rgba(0, 240, 255, 0.6)';
+      ctx.shadowBlur = 8;
+
+      for (const [an, bn] of EDGE_NAMES) {
+        const pa = byName.get(an), pb = byName.get(bn);
+        if (pa && pb && pa.score >= 0.2 && pb.score >= 0.2) {
+          const A = map(pa), B = map(pb);
+          ctx.beginPath();
+          ctx.moveTo(A.x, A.y);
+          ctx.lineTo(B.x, B.y);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      // 2. 繪製所有偵測到的關節標記點
+      ctx.save();
+      for (const p of pose) {
+        if (p.score >= 0.2) {
+          const P = map(p);
+          const isWrist = (p.name === 'rightWrist' || p.name === 'leftWrist');
+          const isTargetWrist = (p.name === 'rightWrist');
+
+          // 外圈發光
+          ctx.beginPath();
+          ctx.arc(P.x, P.y, isTargetWrist ? 10 : 7, 0, Math.PI * 2);
+          ctx.fillStyle = isTargetWrist ? 'rgba(255, 200, 0, 0.4)' : 'rgba(0, 255, 255, 0.35)';
+          ctx.fill();
+
+          // 主標記圓點
+          ctx.beginPath();
+          ctx.arc(P.x, P.y, isTargetWrist ? 6 : 5, 0, Math.PI * 2);
+          ctx.fillStyle = isTargetWrist ? '#ffcc00' : (isWrist ? '#ffaa00' : '#00ffff');
+          ctx.fill();
+
+          // 中心白點增加視覺立體感
+          ctx.beginPath();
+          ctx.arc(P.x, P.y, 2, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+
+          // 標記文字標籤
+          const label = NAME_TO_ZH[p.name] || p.name;
+          ctx.font = '10px sans-serif';
+          const txtW = ctx.measureText(label).width;
+          ctx.fillStyle = 'rgba(10, 12, 18, 0.8)';
+          ctx.fillRect(P.x + 8, P.y - 14, txtW + 6, 14);
+          ctx.fillStyle = isTargetWrist ? '#ffdd44' : '#00ffff';
+          ctx.fillText(label, P.x + 11, P.y - 3);
+        }
+      }
+      ctx.restore();
+
+      // 計算射擊對準線與準星位置
+      res = aim.compute(pose, { width: vw, height: vh }, { width, height }, camera.mirror, fb);
+
+      // 若有瞄準點，從瞄準手腕連出一條輔助虛線到準星
+      if (res && res.wrist) {
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(255, 200, 0, 0.7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(res.wrist.x, res.wrist.y);
+        ctx.lineTo(res.x, res.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    } else {
+      detectEl.textContent = '偵測中：未發現人體';
+      detectEl.style.color = '#ff6666';
+      res = null;
+    }
+  } else {
+    res = aim.setManual(simX, simY);
+  }
+
+  // 顯示或隱藏準星
+  if (res) {
+    cross.style.display = 'block';
+    cross.style.left = res.x + 'px';
+    cross.style.top = res.y + 'px';
+  } else {
+    cross.style.display = 'none';
+  }
+
+  if (target) target.draw(ctx);
+  if (training.state !== 'idle') updateHUD();
+  requestAnimationFrame(loop);
+}
+
+// ================= 開槍觸發 =================
+async function triggerShot() {
+  if (training.state !== 'shooting') {
+    status.textContent = training.state === 'idle' ? '請先點「開始計時」' : '換彈中，請稍候…';
+    return;
+  }
+  if (!aim.last) {
+    status.textContent = '未偵測到右手腕對準點，無法開槍';
+    return;
+  }
+  const hit = target.test(aim.last.x, aim.last.y);
+  training.shot(hit.hit, hit.score);
+  updateHUD();
+  await training.save();
+  renderSplits();
+  ovl.classList.add('recoil');
+  setTimeout(() => ovl.classList.remove('recoil'), 180);
+  status.textContent = hit.hit ? `命中！+${hit.score} 分` : '未擊中靶心';
+  setTimeout(() => {
+    if (status.textContent.startsWith('命中') || status.textContent === '未擊中靶心') {
+      status.textContent = sim ? '模擬模式計時中 — 在畫面上移動對準並開槍' : '計時中 — 舉槍瞄準並射擊！';
+    }
+  }, 900);
+}
+
+// 控制面板按鈕事件綁定
+document.getElementById('btnCam').onclick = async () => {
+  await camera.switchCamera();
+  aim.calibrated = false;
+  status.textContent = '鏡頭已切換，請重新校準';
+};
+camRetry.onclick = async () => {
+  try {
+    await camera.start();
+    sim = false;
+    camEl.style.display = '';
+    camRetry.style.display = 'none';
+    await detector.load(camEl);
+    status.textContent = '相機已啟動。對準靶心，點「校準」後點「開始計時」';
+    status.style.color = '#44ff44';
+  } catch (e) {
+    status.textContent = '相機重試失敗：' + (e && e.message ? e.message : String(e));
+  }
+};
+document.getElementById('btnMode').onclick = () => {
+  const m = training.mode === 'pistol' ? 'rifle' : 'pistol';
+  training.setMode(m); aim.setMode(m);
+  updateHUD();
+  status.textContent = '已切換 ' + (m === 'pistol' ? '手槍 (17 發)' : '步槍 (30 發)');
+};
+document.getElementById('btnCalib').onclick = () => {
+  if (aim.last) {
+    aim.calibrate(aim.last.x, aim.last.y);
+    status.textContent = '校準完成：準星已精確校正至靶心';
+    status.style.color = '#44ff44';
+  } else {
+    status.textContent = '請先舉手將準星對準靶子再點校準';
+  }
+};
+document.getElementById('btnReload').onclick = () => {
+  training.reload(); updateHUD(); status.textContent = '換彈夾中…';
+};
+document.getElementById('btnStart').onclick = () => {
+  training.startTimer(); updateHUD();
+  status.textContent = sim ? '模擬模式計時中 — 移動並點擊開槍' : '計時開始 — 請瞄準射擊！';
+  status.style.color = '#00ffff';
+};
+fireBtn.onpointerdown = (e) => { e.preventDefault(); triggerShot(); };
+parInput.addEventListener('change', () => {
+  training.setParTime(parInput.value);
+  status.textContent = `靶時設為 ${training.getParTime()}s`;
+});
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); triggerShot(); }
+});
+window.addEventListener('pointermove', (e) => {
+  if (sim) {
+    simX = e.clientX;
+    simY = e.clientY;
+  }
+});
+window.addEventListener('pointerdown', (e) => {
+  if (sim && (e.target === ovl || e.target === camEl || e.target === document.body)) {
+    triggerShot();
+  }
+});
+
+main().catch((e) => { status.textContent = '初始化錯誤：' + e.message; console.error(e); });
+</script>
+</body>
+</html>
