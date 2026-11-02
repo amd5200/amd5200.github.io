@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS: AI Pose FPS - Strike Motion</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- TensorFlow.js & Pose Detection Model -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Teko:wght@400;600;700&family=Chakra+Petch:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Chakra Petch', sans-serif;
+            user-select: none;
+            overflow: hidden;
+            background-color: #0b0f19;
+            color: #ffffff;
+        }
+
+        .hud-font {
+            font-family: 'Teko', sans-serif;
+        }
+
+        /* Glassmorphism panel */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Custom Crosshair styling */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        /* Hit Marker animation */
+        @keyframes hitPulse {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        }
+
+        .hit-marker {
+            animation: hitPulse 0.25s forwards;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen relative overflow-hidden bg-black">
+
+    <!-- 3D Canvas Rendering Area -->
+    <div id="game-container" class="absolute inset-0 w-full h-full"></div>
+
+    <!-- HUD Overlay Layer -->
+    <div id="hud-overlay" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10 hidden">
+        
+        <!-- Top Stats Bar -->
+        <div class="flex justify-between items-start">
+            <!-- Health & Armor Status -->
+            <div class="flex items-center space-x-4 glass-panel px-6 py-3 rounded-xl border-l-4 border-emerald-500">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-heart text-emerald-400 text-2xl animate-pulse"></i>
+                    <div>
+                        <div class="text-xs text-gray-400 tracking-wider">HEALTH</div>
+                        <div id="hud-health" class="hud-font text-4xl leading-none text-emerald-400 font-bold">100</div>
+                    </div>
+                </div>
+                <div class="h-8 w-px bg-gray-700 mx-2"></div>
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-shield-halved text-cyan-400 text-xl"></i>
+                    <div>
+                        <div class="text-xs text-gray-400 tracking-wider">ARMOR</div>
+                        <div id="hud-armor" class="hud-font text-3xl leading-none text-cyan-300 font-bold">100</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Score & Kills Center Badge -->
+            <div class="glass-panel px-8 py-2 rounded-xl text-center border-t-2 border-amber-500">
+                <div class="text-xs text-amber-400 tracking-widest font-bold uppercase">Target Neutralized</div>
+                <div id="hud-score" class="hud-font text-5xl leading-none font-bold text-amber-300">0</div>
+                <div class="text-xs text-gray-400">TARGETS REMAINING: <span id="hud-remaining" class="text-white font-bold">0</span></div>
+            </div>
+
+            <!-- Timer & Game Mode -->
+            <div class="glass-panel px-6 py-3 rounded-xl border-r-4 border-indigo-500 text-right">
+                <div class="text-xs text-gray-400 tracking-wider">TIME REMAINING</div>
+                <div id="hud-timer" class="hud-font text-4xl leading-none text-indigo-300 font-bold">02:00</div>
+                <div id="hud-control-mode-badge" class="text-xs font-semibold px-2 py-0.5 rounded bg-indigo-900/60 text-indigo-200 mt-1 inline-block">
+                    KBD + MOUSE MODE
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Crosshair & Hit indicator -->
+        <div id="crosshair">
+            <div class="w-6 h-6 relative flex items-center justify-center">
+                <div class="absolute w-1.5 h-1.5 bg-emerald-400 rounded-full"></div>
+                <div class="absolute w-4 h-0.5 bg-emerald-400/80 -left-4"></div>
+                <div class="absolute w-4 h-0.5 bg-emerald-400/80 -right-4"></div>
+                <div class="absolute h-4 w-0.5 bg-emerald-400/80 -top-4"></div>
+                <div class="absolute h-4 w-0.5 bg-emerald-400/80 -bottom-4"></div>
+            </div>
+        </div>
+        <div id="hit-marker-container" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none hidden">
+            <i class="fa-solid fa-xmark text-red-500 text-5xl hit-marker"></i>
+        </div>
+
+        <!-- Bottom Ammo & Gun Info Bar -->
+        <div class="flex justify-between items-end">
+            <!-- Weapon Status -->
+            <div class="glass-panel px-6 py-4 rounded-xl border-l-4 border-amber-500 flex items-center space-x-6">
+                <div>
+                    <div class="text-xs text-amber-400 tracking-widest font-bold">PRIMARY WEAPON</div>
+                    <div class="text-xl font-bold text-gray-200">AK-47 TACTICAL</div>
+                </div>
+                <div class="h-10 w-px bg-gray-700"></div>
+                <div class="flex items-baseline space-x-1">
+                    <span id="hud-ammo" class="hud-font text-5xl font-bold text-amber-400 leading-none">30</span>
+                    <span class="hud-font text-2xl text-gray-400">/</span>
+                    <span id="hud-maxammo" class="hud-font text-2xl text-gray-400">90</span>
+                </div>
+            </div>
+
+            <!-- Reloading Notification -->
+            <div id="reload-prompt" class="hud-font text-3xl text-amber-400 font-bold animate-bounce hidden">
+                [ R ] RELOADING...
+            </div>
+
+            <!-- Mini Gesture Status Feedback Box -->
+            <div id="gesture-indicator-box" class="glass-panel p-3 rounded-xl flex items-center space-x-3 hidden">
+                <div id="gesture-icon" class="w-10 h-10 rounded-lg bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-indigo-300">
+                    <i class="fa-solid fa-user-check text-xl"></i>
+                </div>
+                <div>
+                    <div class="text-xs text-gray-400">POSE ACTION TRIGGER</div>
+                    <div id="gesture-text" class="text-sm font-bold text-emerald-400">NEUTRAL / READY</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WebCam Overlay Pip Panel (Top Right for AI Mode) -->
+    <div id="webcam-pip" class="absolute top-20 right-6 z-20 glass-panel p-2.5 rounded-2xl border border-cyan-500/40 shadow-2xl hidden pointer-events-auto">
+        <div class="relative w-56 h-40 rounded-xl overflow-hidden bg-slate-950 border border-cyan-500/20">
+            <video id="webcam-video" class="w-full h-full object-cover transform -scale-x-100" playsinline muted autoplay></video>
+            <canvas id="pose-canvas" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none"></canvas>
+            
+            <div class="absolute bottom-1.5 left-2 flex items-center space-x-1.5 text-[10px] bg-black/80 backdrop-blur-sm px-2 py-0.5 rounded-md text-cyan-300 border border-cyan-500/30">
+                <i class="fa-solid fa-person-rays text-cyan-400"></i>
+                <span class="font-bold tracking-wider">AI POSE MONITOR</span>
+            </div>
+            
+            <div id="pose-status-tag" class="absolute top-1.5 right-2 flex items-center space-x-1.5 text-[10px] bg-black/80 backdrop-blur-sm px-2 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300">
+                <span id="pose-status-dot" class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                <span id="pose-status-text" class="font-mono font-semibold">INITIALIZING</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start / Main Menu Screen -->
+    <div id="main-menu" class="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-6">
+        <div class="max-w-xl w-full glass-panel p-8 rounded-2xl border border-indigo-500/30 text-center shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-amber-500"></div>
+            
+            <!-- Logo Header -->
+            <div class="inline-flex items-center space-x-3 mb-2">
+                <i class="fa-solid fa-crosshairs text-3xl text-indigo-400 animate-spin"></i>
+                <h1 class="hud-font text-6xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-300 to-amber-400">
+                    STRIKE MOTION 3D
+                </h1>
+            </div>
+            <p class="text-gray-400 text-sm mb-6">NEXT-GEN AI POSE CONTROLLED TACTICAL FIRST-PERSON SHOOTER</p>
+
+            <!-- Mode Selector Switches -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <!-- Option 1: Keyboard & Mouse -->
+                <button id="select-mode-kbd" class="mode-select-btn p-4 rounded-xl border-2 border-indigo-500 bg-indigo-950/50 hover:bg-indigo-900/60 transition text-left relative group">
+                    <div class="flex items-center justify-between mb-2">
+                        <i class="fa-solid fa-keyboard text-2xl text-indigo-400"></i>
+                        <span class="text-xs px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">CLASSIC</span>
+                    </div>
+                    <div class="font-bold text-white text-base">Keyboard & Mouse</div>
+                    <div class="text-xs text-gray-400 mt-1">WASD Movement + Mouse Pointer Lock Aiming & Shooting</div>
+                </button>
+
+                <!-- Option 2: AI Webcam Pose -->
+                <button id="select-mode-pose" class="mode-select-btn p-4 rounded-xl border-2 border-gray-700 bg-slate-900/40 hover:bg-slate-800/60 transition text-left relative group">
+                    <div class="flex items-center justify-between mb-2">
+                        <i class="fa-solid fa-camera-retro text-2xl text-cyan-400"></i>
+                        <span class="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">AI POWERED</span>
+                    </div>
+                    <div class="font-bold text-white text-base">Webcam AI Motion</div>
+                    <div class="text-xs text-gray-400 mt-1">Lean torso to look/move, Raise right wrist above shoulder to fire gun</div>
+                </button>
+            </div>
+
+            <!-- Pose Guide Details Panel -->
+            <div id="pose-instructions" class="hidden mb-6 p-4 rounded-xl bg-cyan-950/30 border border-cyan-500/30 text-left text-xs text-cyan-200">
+                <div class="font-bold mb-2 flex items-center space-x-2 text-cyan-400">
+                    <i class="fa-solid fa-person-rays"></i>
+                    <span>CAMERA POSE CONTROLS GUIDE:</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-gray-300">
+                    <div>• <b>AIM LEFT/RIGHT:</b> Lean head/body left or right</div>
+                    <div>• <b>WALK FORWARD/BACK:</b> Lean torso slightly forward / back</div>
+                    <div>• <b>FIRE WEAPON:</b> Raise RIGHT HAND above shoulder level</div>
+                    <div>• <b>RELOAD:</b> Raise BOTH HANDS above head</div>
+                </div>
+            </div>
+
+            <!-- Controls summary box for Keyboard -->
+            <div id="kbd-instructions" class="mb-6 p-4 rounded-xl bg-slate-900/60 border border-gray-800 text-left text-xs text-gray-300">
+                <div class="font-bold mb-1 text-indigo-400">CONTROLS QUICK REF:</div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>• Move: <b>W, A, S, D</b></div>
+                    <div>• Look around: <b>Mouse Move</b></div>
+                    <div>• Fire: <b>Left Click</b></div>
+                    <div>• Reload: <b>R Key</b></div>
+                </div>
+            </div>
+
+            <!-- Launch Game Button -->
+            <button id="start-game-btn" class="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold text-xl tracking-wider shadow-lg transform active:scale-95 transition">
+                <i class="fa-solid fa-play mr-2"></i> ENTER TACTICAL ARENA
+            </button>
+
+            <!-- Loading Spinner Indicator -->
+            <div id="loading-spinner" class="hidden my-4 flex items-center justify-center space-x-3 text-cyan-400">
+                <i class="fa-solid fa-circle-notch fa-spin text-2xl"></i>
+                <span id="loading-text" class="text-sm">Initializing 3D Engine & Pose AI...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen Modal -->
+    <div id="game-over-modal" class="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-6 hidden">
+        <div class="max-w-md w-full glass-panel p-8 rounded-2xl border border-red-500/40 text-center shadow-2xl">
+            <div class="w-16 h-16 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto mb-4 border border-red-500/40">
+                <i class="fa-solid fa-trophy text-3xl"></i>
+            </div>
+            <h2 class="hud-font text-5xl font-bold text-red-400 mb-1">MISSION COMPLETED</h2>
+            <p class="text-gray-400 text-sm mb-6">COMBAT PERFORMANCE SUMMARY</p>
+
+            <div class="space-y-3 mb-6 bg-slate-900/80 p-4 rounded-xl border border-gray-800 text-left">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400 text-sm">Target Score:</span>
+                    <span id="final-score" class="hud-font text-3xl text-amber-400 font-bold">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400 text-sm">Accuracy:</span>
+                    <span id="final-accuracy" class="hud-font text-2xl text-emerald-400 font-bold">85%</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400 text-sm">Control Mode:</span>
+                    <span id="final-mode" class="text-sm font-semibold text-indigo-300">Keyboard & Mouse</span>
+                </div>
+            </div>
+
+            <button id="restart-btn" class="w-full py-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold text-xl tracking-wider shadow-lg transform active:scale-95 transition">
+                <i class="fa-solid fa-rotate-right mr-2"></i> DEPLOY AGAIN
+            </button>
+        </div>
+    </div>
+
+    <!-- Application Engine Logic Script -->
+    <script>
+        /**
+         * Global Application State Management
+         */
+        const AppState = {
+            mode: 'kbd', // 'kbd' or 'pose'
+            isPlaying: false,
+            score: 0,
+            targetsEliminated: 0,
+            shotsFired: 0,
+            shotsHit: 0,
+            health: 100,
+            armor: 100,
+            ammo: 30,
+            maxAmmo: 90,
+            clipSize: 30,
+            isReloading: false,
+            gameTime: 120, // 2 minutes in seconds
+            timerInterval: null
+        };
+
+        /**
+         * Web Audio Procedural Sound Synthesizer
+         * (Generates sound effects cleanly without requiring external audio files)
+         */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            // Gunshot sound generation with noise buffer
+            playGunshot() {
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * 0.15;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 1000;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.8, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                noise.start();
+            }
+
+            // Target hit impact sound effect
+            playHitSound() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 0.1);
+
+                gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            // Reload sound synthesizer
+            playReloadSound() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(600, this.ctx.currentTime + 0.2);
+
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            }
+        }
+
+        const audioFX = new SoundEngine();
+
+        /**
+         * 3D FPS Game Engine powered by Three.js
+         */
+        class FPSGameEngine {
+            constructor() {
+                this.container = document.getElementById('game-container');
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                
+                // Physics & Movement parameters
+                this.velocity = new THREE.Vector3();
+                this.direction = new THREE.Vector3();
+                this.moveForward = false;
+                this.moveBackward = false;
+                this.moveLeft = false;
+                this.moveRight = false;
+                this.canJump = true;
+                
+                // Targets & Game Objects
+                this.targets = [];
+                this.obstacles = [];
+                this.raycaster = new THREE.Raycaster();
+                
+                // Gun Mesh reference
+                this.gunGroup = new THREE.Group();
+                this.recoilAmount = 0;
+
+                // Mouse rotation controls
+                this.pitch = 0; // vertical camera rotation
+                this.yaw = 0;   // horizontal camera rotation
+
+                this.initScene();
+                this.initLights();
+                this.buildCSMap();
+                this.createGunModel();
+                this.setupEventListeners();
+            }
+
+            initScene() {
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.container.appendChild(this.renderer.domElement);
+
+                // Fog for atmospheric CS tactical feel
+                this.scene.background = new THREE.Color(0x0a0e17);
+                this.scene.fog = new THREE.FogExp2(0x0a0e17, 0.015);
+
+                // Initial camera positioning
+                this.camera.position.set(0, 1.7, 0); // 1.7m eye level
+            }
+
+            initLights() {
+                // Ambient Lighting
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+                this.scene.add(ambientLight);
+
+                // Directional Sunlight with shadows
+                const sunLight = new THREE.DirectionalLight(0xfff5ea, 1.0);
+                sunLight.position.set(20, 40, 20);
+                sunLight.castShadow = true;
+                sunLight.shadow.mapSize.width = 2048;
+                sunLight.shadow.mapSize.height = 2048;
+                sunLight.shadow.camera.near = 0.5;
+                sunLight.shadow.camera.far = 100;
+                const d = 30;
+                sunLight.shadow.camera.left = -d;
+                sunLight.shadow.camera.right = d;
+                sunLight.shadow.camera.top = d;
+                sunLight.shadow.camera.bottom = -d;
+                this.scene.add(sunLight);
+
+                // Point lights for tactical warmth
+                const warmLight = new THREE.PointLight(0xff9000, 0.8, 15);
+                warmLight.position.set(-10, 3, -10);
+                this.scene.add(warmLight);
+            }
+
+            // Build CS Dust2 Inspired Tactical Box Arena
+            buildCSMap() {
+                // Ground / Floor Grid
+                const floorGeo = new THREE.PlaneGeometry(80, 80);
+                const floorMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x1e293b, 
+                    roughness: 0.8, 
+                    metalness: 0.2 
+                });
+                const floor = new THREE.Mesh(floorGeo, floorMat);
+                floor.rotation.x = -Math.PI / 2;
+                floor.receiveShadow = true;
+                this.scene.add(floor);
+
+                // Floor grid overlay line art
+                const grid = new THREE.GridHelper(80, 40, 0x3b82f6, 0x1e293b);
+                grid.position.y = 0.01;
+                this.scene.add(grid);
+
+                // Arena Perimeter Walls
+                const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
+                const wallHeight = 6;
+                const wallGeo = new THREE.BoxGeometry(80, wallHeight, 1);
+
+                // 4 Surrounding Walls
+                const wallN = new THREE.Mesh(wallGeo, wallMat); wallN.position.set(0, wallHeight/2, -40);
+                const wallS = new THREE.Mesh(wallGeo, wallMat); wallS.position.set(0, wallHeight/2, 40);
+                const wallE = new THREE.Mesh(new THREE.BoxGeometry(1, wallHeight, 80), wallMat); wallE.position.set(40, wallHeight/2, 0);
+                const wallW = new THREE.Mesh(new THREE.BoxGeometry(1, wallHeight, 80), wallMat); wallW.position.set(-40, wallHeight/2, 0);
+
+                [wallN, wallS, wallE, wallW].forEach(w => {
+                    w.receiveShadow = true;
+                    w.castShadow = true;
+                    this.scene.add(w);
+                    this.obstacles.push(w);
+                });
+
+                // Spawn Crates and Cover Obstacles (CS Style Boxes)
+                this.spawnCrates();
+
+                // Spawn Target Dummies
+                this.spawnTargetDummies(10);
+            }
+
+            spawnCrates() {
+                const crateMat = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.7 });
+                const crateMetalMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.5 });
+
+                const cratePositions = [
+                    { x: -5, z: -10, w: 2, h: 2, d: 2, mat: crateMat },
+                    { x: -5, z: -12, w: 2, h: 2, d: 2, mat: crateMat },
+                    { x: -3, z: -11, w: 2, h: 4, d: 2, mat: crateMat },
+                    { x: 8, z: -15, w: 4, h: 2.5, d: 2, mat: crateMetalMat },
+                    { x: 12, z: -8, w: 3, h: 3, d: 3, mat: crateMat },
+                    { x: -12, z: -5, w: 3, h: 2, d: 5, mat: crateMetalMat },
+                    { x: 0, z: -25, w: 6, h: 3, d: 2, mat: crateMetalMat },
+                    { x: 15, z: -20, w: 2, h: 5, d: 2, mat: crateMat },
+                    { x: -15, z: -22, w: 4, h: 3, d: 4, mat: crateMat },
+                ];
+
+                cratePositions.forEach(pos => {
+                    const crate = new THREE.Mesh(new THREE.BoxGeometry(pos.w, pos.h, pos.d), pos.mat);
+                    crate.position.set(pos.x, pos.h / 2, pos.z);
+                    crate.castShadow = true;
+                    crate.receiveShadow = true;
+                    this.scene.add(crate);
+                    this.obstacles.push(crate);
+                });
+            }
+
+            // Spawn Standee / Target Enemies around the arena
+            spawnTargetDummies(count) {
+                // Clear old targets if any
+                this.targets.forEach(t => this.scene.remove(t.mesh));
+                this.targets = [];
+
+                for (let i = 0; i < count; i++) {
+                    const targetGroup = new THREE.Group();
+
+                    // Body cylinder
+                    const bodyGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.4, 16);
+                    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
+                    const body = new THREE.Mesh(bodyGeo, bodyMat);
+                    body.position.y = 0.7;
+                    body.castShadow = true;
+                    targetGroup.add(body);
+
+                    // Head sphere
+                    const headGeo = new THREE.SphereGeometry(0.25, 16, 16);
+                    const headMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+                    const head = new THREE.Mesh(headGeo, headMat);
+                    head.position.y = 1.6;
+                    head.castShadow = true;
+                    targetGroup.add(head);
+
+                    // Bullseye marker on chest
+                    const ringGeo = new THREE.RingGeometry(0.1, 0.25, 16);
+                    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+                    const ring = new THREE.Mesh(ringGeo, ringMat);
+                    ring.position.set(0, 0.8, 0.41);
+                    targetGroup.add(ring);
+
+                    // Random Position within arena boundaries
+                    const x = (Math.random() - 0.5) * 50;
+                    const z = -5 - Math.random() * 30;
+                    targetGroup.position.set(x, 0, z);
+
+                    // Store velocity for simple moving target AI animation
+                    targetGroup.userData = {
+                        speed: 0.02 + Math.random() * 0.03,
+                        direction: Math.random() > 0.5 ? 1 : -1,
+                        minX: x - 5,
+                        maxX: x + 5,
+                        health: 100
+                    };
+
+                    this.scene.add(targetGroup);
+                    this.targets.push({ mesh: targetGroup, head: head, body: body });
+                }
+
+                // Update HUD Remaining targets count
+                document.getElementById('hud-remaining').textContent = this.targets.length;
+            }
+
+            // Create Procedural FPS AK-47 First Person Weapon Model attached to camera
+            createGunModel() {
+                // Main receiver
+                const receiverGeo = new THREE.BoxGeometry(0.1, 0.12, 0.5);
+                const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 });
+                const receiver = new THREE.Mesh(receiverGeo, darkMetalMat);
+                receiver.position.set(0, 0, 0);
+
+                // Barrel
+                const barrelGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.4, 12);
+                const barrel = new THREE.Mesh(barrelGeo, darkMetalMat);
+                barrel.rotation.x = Math.PI / 2;
+                barrel.position.set(0, 0.02, -0.4);
+
+                // Wooden Stock / Grip
+                const woodMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
+                const gripGeo = new THREE.BoxGeometry(0.06, 0.15, 0.08);
+                const grip = new THREE.Mesh(gripGeo, woodMat);
+                grip.position.set(0, -0.1, 0.1);
+                grip.rotation.x = -0.3;
+
+                // Magazine
+                const magGeo = new THREE.BoxGeometry(0.05, 0.25, 0.08);
+                const mag = new THREE.Mesh(magGeo, darkMetalMat);
+                mag.position.set(0, -0.15, -0.1);
+                mag.rotation.x = 0.2;
+
+                this.gunGroup.add(receiver, barrel, grip, mag);
+                
+                // Position relative to First-Person Camera (Bottom Right)
+                this.gunGroup.position.set(0.25, -0.22, -0.45);
+                this.camera.add(this.gunGroup);
+                this.scene.add(this.camera);
+            }
+
+            setupEventListeners() {
+                // Mouse Look Listener via Pointer Lock
+                document.addEventListener('mousemove', (e) => {
+                    if (!AppState.isPlaying || AppState.mode !== 'kbd') return;
+                    if (document.pointerLockElement === document.body) {
+                        const movementX = e.movementX || 0;
+                        const movementY = e.movementY || 0;
+
+                        this.yaw -= movementX * 0.002;
+                        this.pitch -= movementY * 0.002;
+
+                        // Clamp pitch angle so camera doesn't flip upside down
+                        this.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.pitch));
+
+                        this.camera.rotation.set(0, 0, 0);
+                        this.camera.rotation.y = this.yaw;
+                        this.camera.rotation.x = this.pitch;
+                    }
+                });
+
+                // Keyboard Movement Controls
+                document.addEventListener('keydown', (e) => {
+                    if (!AppState.isPlaying) return;
+                    switch (e.code) {
+                        case 'KeyW': case 'ArrowUp': this.moveForward = true; break;
+                        case 'KeyS': case 'ArrowDown': this.moveBackward = true; break;
+                        case 'KeyA': case 'ArrowLeft': this.moveLeft = true; break;
+                        case 'KeyD': case 'ArrowRight': this.moveRight = true; break;
+                        case 'Space': 
+                            if (this.canJump) {
+                                this.velocity.y += 6;
+                                this.canJump = false;
+                            }
+                            break;
+                        case 'KeyR':
+                            this.reloadWeapon();
+                            break;
+                    }
+                });
+
+                document.addEventListener('keyup', (e) => {
+                    switch (e.code) {
+                        case 'KeyW': case 'ArrowUp': this.moveForward = false; break;
+                        case 'KeyS': case 'ArrowDown': this.moveBackward = false; break;
+                        case 'KeyA': case 'ArrowLeft': this.moveLeft = false; break;
+                        case 'KeyD': case 'ArrowRight': this.moveRight = false; break;
+                    }
+                });
+
+                // Mouse Shooting
+                document.addEventListener('mousedown', (e) => {
+                    if (AppState.isPlaying && AppState.mode === 'kbd' && e.button === 0) {
+                        this.shootWeapon();
+                    }
+                });
+
+                // Window Resize Handler
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            // Weapon Fire Mechanism
+            shootWeapon() {
+                if (AppState.isReloading) return;
+                if (AppState.ammo <= 0) {
+                    this.reloadWeapon();
+                    return;
+                }
+
+                AppState.ammo--;
+                AppState.shotsFired++;
+                document.getElementById('hud-ammo').textContent = AppState.ammo;
+
+                // Audio FX
+                audioFX.playGunshot();
+
+                // Recoil animation trigger
+                this.recoilAmount = 0.08;
+
+                // Muzzle Flash Particle / Light Effect
+                const flashLight = new THREE.PointLight(0xffaa00, 3, 5);
+                flashLight.position.set(0.25, -0.2, -0.9);
+                this.camera.add(flashLight);
+                setTimeout(() => this.camera.remove(flashLight), 50);
+
+                // Raycasting for bullet hit detection
+                this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+                
+                const targetMeshes = [];
+                this.targets.forEach(t => {
+                    targetMeshes.push(t.head, t.body);
+                });
+
+                const intersects = this.raycaster.intersectObjects(targetMeshes);
+
+                if (intersects.length > 0) {
+                    AppState.shotsHit++;
+                    audioFX.playHitSound();
+
+                    // Show visual hit marker HUD
+                    const marker = document.getElementById('hit-marker-container');
+                    marker.classList.remove('hidden');
+                    setTimeout(() => marker.classList.add('hidden'), 200);
+
+                    const hitObj = intersects[0].object;
+                    // Find parent target group
+                    const targetIndex = this.targets.findIndex(t => t.head === hitObj || t.body === hitObj);
+
+                    if (targetIndex !== -1) {
+                        const target = this.targets[targetIndex];
+                        const isHeadshot = (hitObj === target.head);
+                        const damage = isHeadshot ? 100 : 50;
+
+                        target.mesh.userData.health -= damage;
+
+                        // Target Defeated / Neutralized
+                        if (target.mesh.userData.health <= 0) {
+                            this.scene.remove(target.mesh);
+                            this.targets.splice(targetIndex, 1);
+                            AppState.score += isHeadshot ? 150 : 100;
+                            AppState.targetsEliminated++;
+                            document.getElementById('hud-score').textContent = AppState.score;
+                            document.getElementById('hud-remaining').textContent = this.targets.length;
+
+                            // Check Win Condition
+                            if (this.targets.length === 0) {
+                                endGameMission();
+                            }
+                        }
+                    }
+                }
+            }
+
+            reloadWeapon() {
+                if (AppState.isReloading || AppState.ammo === AppState.clipSize || AppState.maxAmmo <= 0) return;
+
+                AppState.isReloading = true;
+                document.getElementById('reload-prompt').classList.remove('hidden');
+                audioFX.playReloadSound();
+
+                setTimeout(() => {
+                    const needed = AppState.clipSize - AppState.ammo;
+                    const loaded = Math.min(needed, AppState.maxAmmo);
+                    AppState.ammo += loaded;
+                    AppState.maxAmmo -= loaded;
+
+                    document.getElementById('hud-ammo').textContent = AppState.ammo;
+                    document.getElementById('hud-maxammo').textContent = AppState.maxAmmo;
+                    document.getElementById('reload-prompt').classList.add('hidden');
+                    AppState.isReloading = false;
+                }, 1500);
+            }
+
+            // Main Animation Render Loop
+            update(delta) {
+                if (!AppState.isPlaying) return;
+
+                // 1. Move Targets (Simple horizontal patrol AI)
+                this.targets.forEach(t => {
+                    t.mesh.position.x += t.mesh.userData.speed * t.mesh.userData.direction;
+                    if (t.mesh.position.x > t.mesh.userData.maxX || t.mesh.position.x < t.mesh.userData.minX) {
+                        t.mesh.userData.direction *= -1;
+                    }
+                });
+
+                // 2. Player Physics & Velocity Updates
+                this.velocity.x -= this.velocity.x * 10.0 * delta;
+                this.velocity.z -= this.velocity.z * 10.0 * delta;
+                this.velocity.y -= 9.8 * 2.0 * delta; // Gravity
+
+                this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
+                this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
+                this.direction.normalize();
+
+                if (this.moveForward || this.moveBackward) this.velocity.z -= this.direction.z * 50.0 * delta;
+                if (this.moveLeft || this.moveRight) this.velocity.x -= this.direction.x * 50.0 * delta;
+
+                this.camera.translateX(-this.velocity.x * delta);
+                this.camera.translateZ(this.velocity.z * delta);
+                this.camera.position.y += this.velocity.y * delta;
+
+                // Floor collision (keep player above ground)
+                if (this.camera.position.y < 1.7) {
+                    this.velocity.y = 0;
+                    this.camera.position.y = 1.7;
+                    this.canJump = true;
+                }
+
+                // 3. Gun Recoil Recovery Animation
+                if (this.recoilAmount > 0) {
+                    this.gunGroup.position.z = -0.45 + this.recoilAmount;
+                    this.gunGroup.rotation.x = this.recoilAmount * 2;
+                    this.recoilAmount -= delta * 0.5;
+                } else {
+                    this.recoilAmount = 0;
+                    this.gunGroup.position.z = -0.45;
+                    this.gunGroup.rotation.x = 0;
+                }
+
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        /**
+         * TensorFlow.js Pose Detection Controller Manager
+         */
+        class PoseControllerManager {
+            constructor(gameEngine) {
+                this.game = gameEngine;
+                this.detector = null;
+                this.video = document.getElementById('webcam-video');
+                this.canvas = document.getElementById('pose-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.isModelLoaded = false;
+                this.isRunning = false;
+                this.animationFrameId = null;
+                this.lastShotTime = 0;
+                this.baseShoulderDist = null;
+            }
+
+            async init() {
+                const loadingSpinner = document.getElementById('loading-spinner');
+                const loadingText = document.getElementById('loading-text');
+                loadingSpinner.classList.remove('hidden');
+                loadingText.textContent = "啟動網路攝影機與 TensorFlow 骨架模型中...";
+
+                try {
+                    // Check browser webcam support
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        throw new Error("您的瀏覽器或當前環境不支援攝影機 (getUserMedia)！請使用 Chrome / Edge 或確認在 localhost / HTTPS 環境下開啟。");
+                    }
+
+                    // 1. Initialize Webcam stream
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            facingMode: 'user'
+                        },
+                        audio: false
+                    });
+                    this.video.srcObject = stream;
+
+                    loadingText.textContent = "攝影機已連線，正在初始化 WebGL 與 MoveNet 骨架模型...";
+
+                    await new Promise((resolve) => {
+                        if (this.video.readyState >= 2) {
+                            resolve();
+                        } else {
+                            this.video.onloadeddata = () => resolve();
+                        }
+                    });
+                    await this.video.play();
+
+                    this.canvas.width = this.video.videoWidth || 640;
+                    this.canvas.height = this.video.videoHeight || 480;
+
+                    // 2. Ensure TensorFlow backend is ready
+                    if (window.tf) {
+                        await tf.ready();
+                    }
+
+                    if (typeof poseDetection === 'undefined') {
+                        throw new Error("無法讀取 poseDetection 函式庫，請檢查網路連線是否通暢。");
+                    }
+
+                    // 3. Initialize MoveNet SinglePose Lightning Detector
+                    const detectorConfig = {
+                        modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+                        enableSmoothing: true
+                    };
+                    this.detector = await poseDetection.createDetector(
+                        poseDetection.SupportedModels.MoveNet, 
+                        detectorConfig
+                    );
+
+                    this.isModelLoaded = true;
+                    this.isRunning = true;
+
+                    loadingSpinner.classList.add('hidden');
+                    document.getElementById('webcam-pip').classList.remove('hidden');
+                    document.getElementById('gesture-indicator-box').classList.remove('hidden');
+
+                    const statusText = document.getElementById('pose-status-text');
+                    if (statusText) statusText.textContent = "READY";
+
+                    // Start Pose Loop
+                    this.detectPoseLoop();
+                    return true;
+                } catch (err) {
+                    console.error("TFJS Pose Controller Error:", err);
+                    loadingSpinner.classList.add('hidden');
+                    alert(`無法啟動 AI 體感骨架模型：\n${err.message || err}\n\n系統已自動切換回【鍵盤滑鼠模式】。`);
+                    AppState.mode = 'kbd';
+                    return false;
+                }
+            }
+
+            async detectPoseLoop() {
+                if (!this.isRunning) return;
+
+                try {
+                    if (this.detector && this.video && this.video.readyState >= 2) {
+                        // Dynamically sync canvas internal resolution with camera video feed
+                        if (this.video.videoWidth > 0 && this.canvas.width !== this.video.videoWidth) {
+                            this.canvas.width = this.video.videoWidth;
+                            this.canvas.height = this.video.videoHeight;
+                        }
+
+                        const poses = await this.detector.estimatePoses(this.video, {
+                            maxPoses: 1,
+                            flipHorizontal: false
+                        });
+                        
+                        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                        const statusText = document.getElementById('pose-status-text');
+                        const statusDot = document.getElementById('pose-status-dot');
+
+                        if (poses && poses.length > 0) {
+                            const pose = poses[0];
+                            const validPoints = this.drawSkeleton(pose.keypoints);
+
+                            if (statusText) {
+                                statusText.textContent = `${validPoints} PTS DETECTED`;
+                            }
+                            if (statusDot) {
+                                statusDot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                            }
+
+                            if (AppState.isPlaying) {
+                                this.interpretGestures(pose.keypoints);
+                            }
+                        } else {
+                            if (statusText) {
+                                statusText.textContent = "SEARCHING BODY...";
+                            }
+                            if (statusDot) {
+                                statusDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Pose detection frame error:", err);
+                }
+
+                if (this.isRunning) {
+                    this.animationFrameId = requestAnimationFrame(() => this.detectPoseLoop());
+                }
+            }
+
+            // Draw Skeleton Keypoints & Connecting Bones Overlay on PIP Canvas
+            drawSkeleton(keypoints) {
+                if (!keypoints || keypoints.length === 0) return 0;
+
+                const minScore = 0.25;
+
+                // MoveNet 17 Standard Keypoints
+                const KEYPOINT_NAMES = [
+                    'nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
+                    'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+                    'left_wrist', 'right_wrist', 'left_hip', 'right_hip',
+                    'left_knee', 'right_knee', 'left_ankle', 'right_ankle'
+                ];
+
+                const kpMap = {};
+                keypoints.forEach((kp, idx) => {
+                    const name = kp.name || KEYPOINT_NAMES[idx];
+                    kpMap[name] = kp;
+                });
+
+                // Skeleton Bone Connections
+                const connections = [
+                    // Head
+                    ['nose', 'left_eye'], ['left_eye', 'left_ear'],
+                    ['nose', 'right_eye'], ['right_eye', 'right_ear'],
+                    // Upper Body & Arms
+                    ['left_shoulder', 'right_shoulder'],
+                    ['left_shoulder', 'left_elbow'], ['left_elbow', 'left_wrist'],
+                    ['right_shoulder', 'right_elbow'], ['right_elbow', 'right_wrist'],
+                    // Torso
+                    ['left_shoulder', 'left_hip'], ['right_shoulder', 'right_hip'],
+                    ['left_hip', 'right_hip'],
+                    // Legs
+                    ['left_hip', 'left_knee'], ['left_knee', 'left_ankle'],
+                    ['right_hip', 'right_knee'], ['right_knee', 'right_ankle']
+                ];
+
+                // 1. Draw Connecting Bones (Lines)
+                this.ctx.lineWidth = 3;
+                this.ctx.lineCap = 'round';
+                this.ctx.strokeStyle = '#06b6d4';
+                this.ctx.shadowColor = '#0891b2';
+                this.ctx.shadowBlur = 4;
+
+                connections.forEach(([p1Name, p2Name]) => {
+                    const p1 = kpMap[p1Name];
+                    const p2 = kpMap[p2Name];
+                    if (p1 && p2 && p1.score >= minScore && p2.score >= minScore) {
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(p1.x, p1.y);
+                        this.ctx.lineTo(p2.x, p2.y);
+                        this.ctx.stroke();
+                    }
+                });
+
+                this.ctx.shadowBlur = 0; // Reset shadow
+
+                // Check gesture states for visual highlights
+                const rightWrist = kpMap['right_wrist'];
+                const rightShoulder = kpMap['right_shoulder'];
+                const leftWrist = kpMap['left_wrist'];
+                const leftShoulder = kpMap['left_shoulder'];
+
+                const isRightUp = rightWrist && rightShoulder && rightWrist.score >= minScore && rightWrist.y < rightShoulder.y - 12;
+                const isLeftUp = leftWrist && leftShoulder && leftWrist.score >= minScore && leftWrist.y < leftShoulder.y - 12;
+                const isReloading = isRightUp && isLeftUp;
+                const isShooting = isRightUp && !isLeftUp;
+
+                // 2. Draw Landmark Joint Dots
+                let validCount = 0;
+                keypoints.forEach((kp, idx) => {
+                    const name = kp.name || KEYPOINT_NAMES[idx];
+                    if (kp.score >= minScore) {
+                        validCount++;
+                        let radius = 4;
+                        let fillColor = '#06b6d4'; // default cyan
+
+                        if (name.includes('wrist')) {
+                            fillColor = '#f59e0b'; // amber
+                            radius = 5.5;
+                            if (name === 'right_wrist' && isShooting) {
+                                fillColor = '#ef4444'; // red when firing
+                                radius = 7.5;
+                            } else if (isReloading) {
+                                fillColor = '#38bdf8'; // light blue when reloading
+                                radius = 7;
+                            }
+                        } else if (name.includes('shoulder') || name.includes('elbow')) {
+                            fillColor = '#10b981'; // emerald
+                            radius = 4.5;
+                        } else if (name.includes('hip') || name.includes('knee') || name.includes('ankle')) {
+                            fillColor = '#a855f7'; // purple
+                            radius = 4;
+                        } else if (name === 'nose' || name.includes('eye') || name.includes('ear')) {
+                            fillColor = '#38bdf8'; // sky blue
+                            radius = 3.5;
+                        }
+
+                        // Outer ring highlight for firing / reloading
+                        if ((name === 'right_wrist' && isShooting) || (isReloading && name.includes('wrist'))) {
+                            this.ctx.beginPath();
+                            this.ctx.arc(kp.x, kp.y, radius + 4, 0, 2 * Math.PI);
+                            this.ctx.strokeStyle = fillColor;
+                            this.ctx.lineWidth = 2;
+                            this.ctx.stroke();
+                        }
+
+                        // Point circle
+                        this.ctx.beginPath();
+                        this.ctx.arc(kp.x, kp.y, radius, 0, 2 * Math.PI);
+                        this.ctx.fillStyle = fillColor;
+                        this.ctx.fill();
+
+                        // Crisp white outline
+                        this.ctx.lineWidth = 1.5;
+                        this.ctx.strokeStyle = '#ffffff';
+                        this.ctx.stroke();
+                    }
+                });
+
+                return validCount;
+            }
+
+            // Interpret Keypoints into FPS Movements & Actions
+            interpretGestures(keypoints) {
+                const KEYPOINT_NAMES = [
+                    'nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
+                    'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+                    'left_wrist', 'right_wrist', 'left_hip', 'right_hip',
+                    'left_knee', 'right_knee', 'left_ankle', 'right_ankle'
+                ];
+
+                const kpMap = {};
+                keypoints.forEach((kp, idx) => {
+                    const name = kp.name || KEYPOINT_NAMES[idx];
+                    kpMap[name] = kp;
+                });
+
+                const nose = kpMap['nose'];
+                const leftShoulder = kpMap['left_shoulder'];
+                const rightShoulder = kpMap['right_shoulder'];
+                const rightWrist = kpMap['right_wrist'];
+                const leftWrist = kpMap['left_wrist'];
+
+                const gestureText = document.getElementById('gesture-text');
+                const minScore = 0.25;
+
+                if (nose && leftShoulder && rightShoulder &&
+                    nose.score >= minScore && leftShoulder.score >= minScore && rightShoulder.score >= minScore) {
+                    
+                    const shoulderCenter = (leftShoulder.x + rightShoulder.x) / 2;
+                    const offsetX = nose.x - shoulderCenter; // Lean horizontal
+
+                    let actionStatus = "NEUTRAL / READY";
+
+                    // 1. Aiming / Looking Camera Tilt Controls
+                    // In camera raw view, player leans RIGHT -> nose.x decreases -> offsetX < -12.
+                    // Aiming to the right corresponds to decreasing yaw.
+                    if (offsetX < -12) {
+                        this.game.yaw -= 0.035; // Turn Right
+                        actionStatus = "TURNING RIGHT";
+                    } else if (offsetX > 12) {
+                        this.game.yaw += 0.035; // Turn Left
+                        actionStatus = "TURNING LEFT";
+                    }
+                    
+                    this.game.camera.rotation.set(0, 0, 0);
+                    this.game.camera.rotation.y = this.game.yaw;
+                    this.game.camera.rotation.x = this.game.pitch;
+
+                    // 2. Walking Forward/Backward (Adaptive Shoulder Distance)
+                    const shoulderDist = Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y);
+                    if (!this.baseShoulderDist) {
+                        this.baseShoulderDist = shoulderDist;
+                    } else if (Math.abs(offsetX) <= 12) {
+                        // Slowly adapt to user baseline
+                        this.baseShoulderDist = this.baseShoulderDist * 0.99 + shoulderDist * 0.01;
+                    }
+
+                    if (shoulderDist > this.baseShoulderDist * 1.15) {
+                        this.game.moveForward = true;
+                        this.game.moveBackward = false;
+                        actionStatus += " | WALKING FORWARD";
+                    } else if (shoulderDist < this.baseShoulderDist * 0.85) {
+                        this.game.moveBackward = true;
+                        this.game.moveForward = false;
+                        actionStatus += " | STEPPING BACK";
+                    } else {
+                        this.game.moveForward = false;
+                        this.game.moveBackward = false;
+                    }
+
+                    // 3. Reload Gesture (Raise BOTH hands above shoulders) - Check first!
+                    const isRightUp = rightWrist && rightShoulder && rightWrist.score >= minScore && rightWrist.y < rightShoulder.y - 12;
+                    const isLeftUp = leftWrist && leftShoulder && leftWrist.score >= minScore && leftWrist.y < leftShoulder.y - 12;
+
+                    if (isRightUp && isLeftUp) {
+                        actionStatus = "🔄 RELOADING!";
+                        this.game.reloadWeapon();
+                    } else if (isRightUp) {
+                        // 4. Shooting Gesture (Raise Right Wrist above Right Shoulder level)
+                        actionStatus = "🔥 FIRING WEAPON!";
+                        const now = Date.now();
+                        if (now - this.lastShotTime > 180) { // Rate of fire limiter
+                            this.game.shootWeapon();
+                            this.lastShotTime = now;
+                        }
+                    }
+
+                    if (gestureText) {
+                        gestureText.textContent = actionStatus;
+                    }
+                }
+            }
+
+            // Stop controller and release webcam
+            stop() {
+                this.isRunning = false;
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                    this.animationFrameId = null;
+                }
+                if (this.video && this.video.srcObject) {
+                    const tracks = this.video.srcObject.getTracks();
+                    tracks.forEach(track => track.stop());
+                    this.video.srcObject = null;
+                }
+                if (this.ctx) {
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                }
+            }
+        }
+
+        // Initialize Engine & Managers
+        let gameInstance = null;
+        let poseController = null;
+        let clock = new THREE.Clock();
+
+        window.onload = () => {
+            gameInstance = new FPSGameEngine();
+            poseController = new PoseControllerManager(gameInstance);
+
+            // UI Control Mode Selection Switch
+            const kbdBtn = document.getElementById('select-mode-kbd');
+            const poseBtn = document.getElementById('select-mode-pose');
+            const poseInstructions = document.getElementById('pose-instructions');
+            const kbdInstructions = document.getElementById('kbd-instructions');
+
+            kbdBtn.addEventListener('click', () => {
+                AppState.mode = 'kbd';
+                kbdBtn.className = "mode-select-btn p-4 rounded-xl border-2 border-indigo-500 bg-indigo-950/50 transition text-left";
+                poseBtn.className = "mode-select-btn p-4 rounded-xl border-2 border-gray-700 bg-slate-900/40 transition text-left";
+                poseInstructions.classList.add('hidden');
+                kbdInstructions.classList.remove('hidden');
+            });
+
+            poseBtn.addEventListener('click', () => {
+                AppState.mode = 'pose';
+                poseBtn.className = "mode-select-btn p-4 rounded-xl border-2 border-cyan-500 bg-cyan-950/50 transition text-left";
+                kbdBtn.className = "mode-select-btn p-4 rounded-xl border-2 border-gray-700 bg-slate-900/40 transition text-left";
+                kbdInstructions.classList.add('hidden');
+                poseInstructions.classList.remove('hidden');
+            });
+
+            // Start Button Logic
+            document.getElementById('start-game-btn').addEventListener('click', async () => {
+                audioFX.init();
+
+                const startBtn = document.getElementById('start-game-btn');
+                startBtn.disabled = true;
+
+                if (AppState.mode === 'pose') {
+                    const success = await poseController.init();
+                    if (!success) {
+                        startBtn.disabled = false;
+                        return;
+                    }
+                } else {
+                    // Lock Pointer for Classic Mouse Aiming
+                    document.body.requestPointerLock();
+                }
+
+                startBtn.disabled = false;
+                document.getElementById('main-menu').classList.add('hidden');
+                document.getElementById('hud-overlay').classList.remove('hidden');
+                document.getElementById('hud-control-mode-badge').textContent = 
+                    AppState.mode === 'pose' ? 'AI WEBCAM POSE MODE' : 'KBD + MOUSE MODE';
+
+                AppState.isPlaying = true;
+                startMissionTimer();
+                animateLoop();
+            });
+
+            // Restart Button
+            document.getElementById('restart-btn').addEventListener('click', () => {
+                window.location.reload();
+            });
+        };
+
+        // Timer Countdown logic
+        function startMissionTimer() {
+            AppState.timerInterval = setInterval(() => {
+                if (!AppState.isPlaying) return;
+                AppState.gameTime--;
+
+                const mins = Math.floor(AppState.gameTime / 60).toString().padStart(2, '0');
+                const secs = (AppState.gameTime % 60).toString().padStart(2, '0');
+                document.getElementById('hud-timer').textContent = `${mins}:${secs}`;
+
+                if (AppState.gameTime <= 0) {
+                    endGameMission();
+                }
+            }, 1000);
+        }
+
+        // Mission GameOver Screen handler
+        function endGameMission() {
+            AppState.isPlaying = false;
+            clearInterval(AppState.timerInterval);
+
+            if (poseController) {
+                poseController.stop();
+            }
+
+            if (document.exitPointerLock) document.exitPointerLock();
+
+            document.getElementById('hud-overlay').classList.add('hidden');
+            document.getElementById('webcam-pip').classList.add('hidden');
+            document.getElementById('game-over-modal').classList.remove('hidden');
+
+            const acc = AppState.shotsFired > 0 ? Math.round((AppState.shotsHit / AppState.shotsFired) * 100) : 0;
+
+            document.getElementById('final-score').textContent = AppState.score;
+            document.getElementById('final-accuracy').textContent = `${acc}%`;
+            document.getElementById('final-mode').textContent = AppState.mode === 'pose' ? 'AI Webcam Motion' : 'Keyboard & Mouse';
+        }
+
+        // Main Rendering Cycle
+        function animateLoop() {
+            if (!AppState.isPlaying) return;
+
+            requestAnimationFrame(animateLoop);
+            const delta = clock.getDelta();
+            gameInstance.update(delta);
+        }
+    </script>
+</body>
+</html>
